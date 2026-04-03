@@ -1,0 +1,110 @@
+/*
+ * CuChulainn IDS v5.1 - HTTP/2 Parser
+ * Basic HTTP/2 frame inspection with simple Rapid Reset heuristics.
+ */
+
+#include "protocol_parser.h"
+#include <string.h>
+#include <stdint.h>
+
+#define HTTP2_FRAME_DATA         0x0
+#define HTTP2_FRAME_HEADERS      0x1
+#define HTTP2_FRAME_PRIORITY     0x2
+#define HTTP2_FRAME_RST_STREAM   0x3
+#define HTTP2_FRAME_SETTINGS     0x4
+#define HTTP2_FRAME_PUSH_PROMISE 0x5
+#define HTTP2_FRAME_PING         0x6
+#define HTTP2_FRAME_GOAWAY       0x7
+#define HTTP2_FRAME_WINDOW_UPD   0x8
+#define HTTP2_FRAME_CONTINUATION 0x9
+
+static uint32_t http2_read_u24(const uint8_t *p) {
+    return ((uint32_t)p[0] << 16) | ((uint32_t)p[1] << 8) | (uint32_t)p[2];
+}
+
+static uint32_t http2_read_stream_id(const uint8_t *p) {
+    return (((uint32_t)p[0] & 0x7F) << 24) |
+           ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] << 8)  |
+           ((uint32_t)p[3]);
+}
+
+static int http2_has_preface(const uint8_t *data, size_t len) {
+    static const char preface[] = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+    size_t plen = sizeof(preface) - 1;
+    return len >= plen && memcmp(data, preface, plen) == 0;
+}
+
+int parse_http2(const uint8_t *data, size_t len, protocol_ctx_t *ctx) {
+    if (!data || !ctx || len < 9) return -1;
+
+    ctx->proto = PROTO_HTTP2;
+    ctx->flags = 0;
+
+    size_t off = 0;
+    unsigned int headers_count = 0;
+    unsigned int rst_count = 0;
+    unsigned int settings_count = 0;
+    unsigned int small_headers = 0;
+
+    if (http2_has_preface(data, len)) {
+        off = 24;
+    }
+
+    while (off + 9 <= len) {
+        uint32_t frame_len = http2_read_u24(&data[off]);
+        uint8_t frame_type = data[off + 3];
+        uint8_t frame_flags = data[off + 4];
+        uint32_t stream_id = http2_read_stream_id(&data[off + 5]);
+
+        off += 9;
+        if (off + frame_len > len) break;
+
+        switch (frame_type) {
+            case HTTP2_FRAME_HEADERS:
+                headers_count++;
+                if (frame_len <= 12) small_headers++;
+                if (frame_flags & 0x1) ctx->flags += 1;
+                break;
+
+            case HTTP2_FRAME_RST_STREAM:
+                rst_count++;
+                ctx->flags += 2;
+                break;
+
+            case HTTP2_FRAME_SETTINGS:
+                settings_count++;
+                break;
+
+            default:
+                break;
+        }
+
+        if (stream_id > 0 && (stream_id % 2) == 1) {
+            if (stream_id > 1000) ctx->flags += 1;
+        }
+
+        off += frame_len;
+    }
+
+    /* encode a simple suspicion level into ctx->flags */
+    if (rst_count >= 10) ctx->flags += 4;
+    if (headers_count >= 10 && rst_count >= 10) ctx->flags += 6;
+    if (small_headers >= 5 && rst_count >= 5) ctx->flags += 4;
+    if (settings_count > 5) ctx->flags += 1;
+
+    return 0;
+}
+
+bool http2_is_malicious(const protocol_ctx_t *ctx) {
+    if (!ctx) return false;
+
+    /*
+     * Rapid Reset style abuse often involves many HEADERS followed by many
+     * RST_STREAM frames, rapidly cycling streams and bypassing concurrency
+     * expectations.
+     */
+    if (ctx->flags >= 10) return true;
+
+    return false;
+}
