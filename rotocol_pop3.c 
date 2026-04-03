@@ -1,0 +1,128 @@
+/*
+ * CuChulainn IDS v5.1 - POP3 Parser
+ * Basic POP3 command parsing with simple suspicious login
+ * and bulk retrieval heuristics.
+ */
+
+#include "protocol_parser.h"
+#include <string.h>
+#include <stdint.h>
+#include <ctype.h>
+
+#ifndef PROTO_POP3
+#define PROTO_POP3 16
+#endif
+
+static int pop3_contains_case_insensitive(const char *haystack, const char *needle) {
+    if (!haystack || !needle) return 0;
+
+    size_t nlen = strlen(needle);
+    if (nlen == 0) return 1;
+
+    for (const char *p = haystack; *p; p++) {
+        size_t i = 0;
+        while (p[i] && needle[i] &&
+               toupper((unsigned char)p[i]) == toupper((unsigned char)needle[i])) {
+            i++;
+        }
+        if (i == nlen) return 1;
+    }
+
+    return 0;
+}
+
+static int pop3_looks_like_command(const char *buf) {
+    if (!buf) return 0;
+
+    return pop3_contains_case_insensitive(buf, "USER ") ||
+           pop3_contains_case_insensitive(buf, "PASS ") ||
+           pop3_contains_case_insensitive(buf, "STAT") ||
+           pop3_contains_case_insensitive(buf, "LIST") ||
+           pop3_contains_case_insensitive(buf, "RETR ") ||
+           pop3_contains_case_insensitive(buf, "UIDL") ||
+           pop3_contains_case_insensitive(buf, "TOP ") ||
+           pop3_contains_case_insensitive(buf, "APOP ") ||
+           pop3_contains_case_insensitive(buf, "+OK") ||
+           pop3_contains_case_insensitive(buf, "-ERR");
+}
+
+static void pop3_extract_domain(const char *buf, protocol_ctx_t *ctx) {
+    if (!buf || !ctx) return;
+
+    const char *user = strstr(buf, "USER ");
+    if (!user) return;
+
+    user += 5;
+    const char *at = strchr(user, '@');
+    if (!at) return;
+    at++;
+
+    size_t i = 0;
+    while (at[i] &&
+           !isspace((unsigned char)at[i]) &&
+           at[i] != '\r' &&
+           at[i] != '\n' &&
+           i < sizeof(ctx->domain) - 1) {
+        ctx->domain[i] = at[i];
+        i++;
+    }
+    ctx->domain[i] = '\0';
+}
+
+static unsigned int pop3_suspicion_score(const char *buf, const protocol_ctx_t *ctx) {
+    unsigned int score = 0;
+    if (!buf) return score;
+
+    /* Plaintext login sequence */
+    if (pop3_contains_case_insensitive(buf, "USER ")) score += 2;
+    if (pop3_contains_case_insensitive(buf, "PASS ")) score += 3;
+    if (pop3_contains_case_insensitive(buf, "APOP ")) score += 1;
+
+    /* Bulk enumeration / mailbox scraping */
+    if (pop3_contains_case_insensitive(buf, "STAT")) score += 1;
+    if (pop3_contains_case_insensitive(buf, "LIST")) score += 1;
+    if (pop3_contains_case_insensitive(buf, "UIDL")) score += 2;
+    if (pop3_contains_case_insensitive(buf, "RETR 1")) score += 1;
+    if (pop3_contains_case_insensitive(buf, "RETR 2")) score += 1;
+    if (pop3_contains_case_insensitive(buf, "RETR 3")) score += 1;
+    if (pop3_contains_case_insensitive(buf, "TOP ")) score += 2;
+
+    /* Error patterns suggesting repeated auth attempts */
+    if (pop3_contains_case_insensitive(buf, "-ERR")) score += 2;
+    if (pop3_contains_case_insensitive(buf, "authentication failed")) score += 3;
+    if (pop3_contains_case_insensitive(buf, "invalid password")) score += 3;
+
+    /* Suspicious user domain length */
+    if (ctx && ctx->domain[0] && strlen(ctx->domain) > 32) score += 2;
+
+    return score;
+}
+
+int parse_pop3(const uint8_t *data, size_t len, protocol_ctx_t *ctx) {
+    if (!data || !ctx || len < 3) return -1;
+
+    const char *buf = (const char *)data;
+
+    if (!pop3_looks_like_command(buf)) {
+        return -1;
+    }
+
+    ctx->proto = (protocol_t)PROTO_POP3;
+    ctx->flags = 0;
+    memset(ctx->domain, 0, sizeof(ctx->domain));
+
+    pop3_extract_domain(buf, ctx);
+    ctx->flags = pop3_suspicion_score(buf, ctx);
+
+    return 0;
+}
+
+bool pop3_is_malicious(const protocol_ctx_t *ctx) {
+    if (!ctx) return false;
+
+    if (ctx->flags >= 6) return true;
+
+    if (ctx->domain[0] && strlen(ctx->domain) > 40) return true;
+
+    return false;
+}
