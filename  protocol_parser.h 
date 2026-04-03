@@ -1,0 +1,23 @@
+### **`protocol_parser.h`** (Header)
+```c
+#ifndef PROTOCOL_PARSER_H
+#define PROTOCOL_PARSER_H
+
+typedef enum {
+    PROTO_UNKNOWN = 0,
+    PROTO_TLS, PROTO_SSH, PROTO_MQTT, PROTO_RTSP, PROTO_QUIC, PROTO_COAP,
+    PROTO_DNS, PROTO_HTTP1, PROTO_HTTP2, PROTO_SIP, PROTO_SMTP, PROTO_NTP, PROTO_FTP,
+    PROTO_MAX
+} protocol_t;
+
+typedef struct {
+    protocol_t proto;
+    char uri[512];
+    char domain[256];
+    float entropy;
+    uint32_t flags;
+} protocol_ctx_t;
+
+int protocol_parser_init(void);
+protocol_t
+
