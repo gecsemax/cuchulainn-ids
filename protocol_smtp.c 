@@ -1,0 +1,121 @@
+/*
+ * CuChulainn IDS v5.1 - SMTP Parser
+ * Basic SMTP parsing with simple phishing and suspicious mail heuristics.
+ */
+
+#include "protocol_parser.h"
+#include <string.h>
+#include <stdint.h>
+#include <ctype.h>
+
+static int smtp_contains_case_insensitive(const char *haystack, const char *needle) {
+    if (!haystack || !needle) return 0;
+
+    size_t nlen = strlen(needle);
+    if (nlen == 0) return 1;
+
+    for (const char *p = haystack; *p; p++) {
+        size_t i = 0;
+        while (p[i] && needle[i] &&
+               tolower((unsigned char)p[i]) == tolower((unsigned char)needle[i])) {
+            i++;
+        }
+        if (i == nlen) return 1;
+    }
+
+    return 0;
+}
+
+static void smtp_extract_mail_from_domain(const char *buf, protocol_ctx_t *ctx) {
+    const char *p = strstr(buf, "MAIL FROM:");
+    if (!p) p = strstr(buf, "From:");
+    if (!p) return;
+
+    const char *at = strchr(p, '@');
+    if (!at) return;
+
+    at++;
+    size_t i = 0;
+    while (at[i] &&
+           at[i] != '>' &&
+           at[i] != '\r' &&
+           at[i] != '\n' &&
+           !isspace((unsigned char)at[i]) &&
+           i < sizeof(ctx->domain) - 1) {
+        ctx->domain[i] = at[i];
+        i++;
+    }
+    ctx->domain[i] = '\0';
+}
+
+static unsigned int smtp_suspicion_score(const char *buf, const protocol_ctx_t *ctx) {
+    unsigned int score = 0;
+    if (!buf) return score;
+
+    /* Suspicious sender/authentication clues */
+    if (smtp_contains_case_insensitive(buf, "spf=fail")) score += 4;
+    if (smtp_contains_case_insensitive(buf, "spf=softfail")) score += 3;
+    if (smtp_contains_case_insensitive(buf, "dmarc=fail")) score += 4;
+    if (smtp_contains_case_insensitive(buf, "dkim=fail")) score += 3;
+    if (smtp_contains_case_insensitive(buf, "undisclosed-recipients")) score += 2;
+
+    /* Attachment/MIME heuristics */
+    if (smtp_contains_case_insensitive(buf, "content-type: multipart/mixed")) score += 2;
+    if (smtp_contains_case_insensitive(buf, "application/octet-stream")) score += 4;
+    if (smtp_contains_case_insensitive(buf, ".exe")) score += 5;
+    if (smtp_contains_case_insensitive(buf, ".scr")) score += 5;
+    if (smtp_contains_case_insensitive(buf, ".js")) score += 4;
+    if (smtp_contains_case_insensitive(buf, ".vbs")) score += 4;
+    if (smtp_contains_case_insensitive(buf, ".iso")) score += 4;
+    if (smtp_contains_case_insensitive(buf, ".lnk")) score += 4;
+    if (smtp_contains_case_insensitive(buf, ".eml")) score += 2;
+
+    /* Phishing language / behavior hints */
+    if (smtp_contains_case_insensitive(buf, "urgent")) score += 1;
+    if (smtp_contains_case_insensitive(buf, "invoice")) score += 1;
+    if (smtp_contains_case_insensitive(buf, "payment")) score += 1;
+    if (smtp_contains_case_insensitive(buf, "password")) score += 2;
+    if (smtp_contains_case_insensitive(buf, "verify your account")) score += 3;
+    if (smtp_contains_case_insensitive(buf, "click here")) score += 2;
+
+    /* Weird links / sender domain hints */
+    if (smtp_contains_case_insensitive(buf, "http://")) score += 1;
+    if (smtp_contains_case_insensitive(buf, "https://")) score += 1;
+    if (ctx && strlen(ctx->domain) > 30) score += 2;
+
+    return score;
+}
+
+int parse_smtp(const uint8_t *data, size_t len, protocol_ctx_t *ctx) {
+    if (!data || !ctx || len < 4) return -1;
+
+    const char *buf = (const char *)data;
+
+    if (!(smtp_contains_case_insensitive(buf, "HELO ") ||
+          smtp_contains_case_insensitive(buf, "EHLO ") ||
+          smtp_contains_case_insensitive(buf, "MAIL FROM:") ||
+          smtp_contains_case_insensitive(buf, "RCPT TO:") ||
+          smtp_contains_case_insensitive(buf, "DATA") ||
+          smtp_contains_case_insensitive(buf, "SMTP"))) {
+        return -1;
+    }
+
+    ctx->proto = PROTO_SMTP;
+    ctx->flags = 0;
+    memset(ctx->domain, 0, sizeof(ctx->domain));
+
+    smtp_extract_mail_from_domain(buf, ctx);
+    ctx->flags = smtp_suspicion_score(buf, ctx);
+
+    return 0;
+}
+
+bool smtp_is_malicious(const protocol_ctx_t *ctx) {
+    if (!ctx) return false;
+
+    if (ctx->flags >= 5) return true;
+
+    if (ctx->domain[0] && strlen(ctx->domain) > 40) return true;
+
+    return false;
+}
