@@ -1,0 +1,128 @@
+/*
+ * CuChulainn IDS v5.1 - IMAP Parser
+ * Basic IMAP command parsing with simple suspicious login
+ * and mailbox access heuristics.
+ */
+
+#include "protocol_parser.h"
+#include <string.h>
+#include <stdint.h>
+#include <ctype.h>
+
+#ifndef PROTO_IMAP
+#define PROTO_IMAP 15
+#endif
+
+static int imap_contains_case_insensitive(const char *haystack, const char *needle) {
+    if (!haystack || !needle) return 0;
+
+    size_t nlen = strlen(needle);
+    if (nlen == 0) return 1;
+
+    for (const char *p = haystack; *p; p++) {
+        size_t i = 0;
+        while (p[i] && needle[i] &&
+               tolower((unsigned char)p[i]) == tolower((unsigned char)needle[i])) {
+            i++;
+        }
+        if (i == nlen) return 1;
+    }
+
+    return 0;
+}
+
+static int imap_looks_like_command(const char *buf) {
+    if (!buf) return 0;
+
+    return imap_contains_case_insensitive(buf, " LOGIN ") ||
+           imap_contains_case_insensitive(buf, " AUTHENTICATE ") ||
+           imap_contains_case_insensitive(buf, " SELECT ") ||
+           imap_contains_case_insensitive(buf, " EXAMINE ") ||
+           imap_contains_case_insensitive(buf, " FETCH ") ||
+           imap_contains_case_insensitive(buf, " SEARCH ") ||
+           imap_contains_case_insensitive(buf, " UID ") ||
+           imap_contains_case_insensitive(buf, " IDLE") ||
+           imap_contains_case_insensitive(buf, " CAPABILITY");
+}
+
+static void imap_extract_domain(const char *buf, protocol_ctx_t *ctx) {
+    if (!buf || !ctx) return;
+
+    const char *login = strstr(buf, "LOGIN ");
+    if (!login) return;
+
+    const char *at = strchr(login, '@');
+    if (!at) return;
+    at++;
+
+    size_t i = 0;
+    while (at[i] &&
+           !isspace((unsigned char)at[i]) &&
+           at[i] != '\r' &&
+           at[i] != '\n' &&
+           i < sizeof(ctx->domain) - 1) {
+        ctx->domain[i] = at[i];
+        i++;
+    }
+    ctx->domain[i] = '\0';
+}
+
+static unsigned int imap_suspicion_score(const char *buf, const protocol_ctx_t *ctx) {
+    unsigned int score = 0;
+    if (!buf) return score;
+
+    /* Plain login/auth patterns */
+    if (imap_contains_case_insensitive(buf, " LOGIN ")) score += 2;
+    if (imap_contains_case_insensitive(buf, " AUTHENTICATE PLAIN")) score += 3;
+    if (imap_contains_case_insensitive(buf, " AUTHENTICATE LOGIN")) score += 2;
+
+    /* High-value mailbox targeting */
+    if (imap_contains_case_insensitive(buf, "SELECT INBOX")) score += 1;
+    if (imap_contains_case_insensitive(buf, "EXAMINE")) score += 1;
+    if (imap_contains_case_insensitive(buf, "FETCH 1:*")) score += 4;
+    if (imap_contains_case_insensitive(buf, "BODY[]")) score += 3;
+    if (imap_contains_case_insensitive(buf, "BODY.PEEK")) score += 2;
+    if (imap_contains_case_insensitive(buf, "SEARCH SUBJECT")) score += 2;
+    if (imap_contains_case_insensitive(buf, "SEARCH FROM")) score += 2;
+    if (imap_contains_case_insensitive(buf, "SEARCH TEXT")) score += 3;
+    if (imap_contains_case_insensitive(buf, "UID FETCH")) score += 3;
+
+    /* Bulk mailbox access / scraping behavior */
+    if (imap_contains_case_insensitive(buf, "1:*")) score += 2;
+    if (imap_contains_case_insensitive(buf, "IDLE")) score += 1;
+    if (imap_contains_case_insensitive(buf, "X-")) score += 1;
+
+    /* Strange account hints */
+    if (ctx && ctx->domain[0] && strlen(ctx->domain) > 32) score += 2;
+
+    return score;
+}
+
+int parse_imap(const uint8_t *data, size_t len, protocol_ctx_t *ctx) {
+    if (!data || !ctx || len < 4) return -1;
+
+    const char *buf = (const char *)data;
+
+    if (!(imap_contains_case_insensitive(buf, "IMAP4") || imap_looks_like_command(buf))) {
+        return -1;
+    }
+
+    ctx->proto = (protocol_t)PROTO_IMAP;
+    ctx->flags = 0;
+    memset(ctx->domain, 0, sizeof(ctx->domain));
+
+    imap_extract_domain(buf, ctx);
+    ctx->flags = imap_suspicion_score(buf, ctx);
+
+    return 0;
+}
+
+bool imap_is_malicious(const protocol_ctx_t *ctx) {
+    if (!ctx) return false;
+
+    if (ctx->flags >= 6) return true;
+
+    if (ctx->domain[0] && strlen(ctx->domain) > 40) return true;
+
+    return false;
+}
