@@ -1,0 +1,118 @@
+/*
+ * CuChulainn IDS v5.1 - DNS Parser
+ * Detects suspicious DNS query patterns including
+ * high-entropy domains, long labels, and tunneling indicators.
+ */
+
+#include "protocol_parser.h"
+#include <string.h>
+#include <stdint.h>
+#include <ctype.h>
+#include <math.h>
+
+static float dns_entropy_score(const char *s) {
+    if (!s || !*s) return 0.0f;
+
+    int freq[256] = {0};
+    size_t len = 0;
+    for (const unsigned char *p = (const unsigned char *)s; *p; ++p) {
+        freq[*p]++;
+        len++;
+    }
+
+    if (len == 0) return 0.0f;
+
+    float h = 0.0f;
+    for (int i = 0; i < 256; i++) {
+        if (freq[i] == 0) continue;
+        float p = (float)freq[i] / (float)len;
+        h -= p * (logf(p) / logf(2.0f));
+    }
+    return h;
+}
+
+static int dns_extract_qname(const uint8_t *data, size_t len, char *out, size_t out_sz) {
+    if (!data || !out || out_sz == 0 || len < 13) return -1;
+
+    size_t off = 12;
+    size_t pos = 0;
+
+    while (off < len) {
+        uint8_t label_len = data[off++];
+
+        if (label_len == 0) break;
+        if ((label_len & 0xC0) != 0) return -1;
+        if (label_len > 63) return -1;
+        if (off + label_len > len) return -1;
+
+        if (pos && pos < out_sz - 1) {
+            out[pos++] = '.';
+        }
+
+        for (uint8_t i = 0; i < label_len && pos < out_sz - 1; i++) {
+            unsigned char c = data[off + i];
+            out[pos++] = (char)(isprint(c) ? c : '?');
+        }
+
+        off += label_len;
+    }
+
+    out[pos] = '\0';
+    return 0;
+}
+
+static int dns_count_labels(const char *domain) {
+    if (!domain || !*domain) return 0;
+    int count = 1;
+    for (const char *p = domain; *p; ++p) {
+        if (*p == '.') count++;
+    }
+    return count;
+}
+
+static int dns_longest_label(const char *domain) {
+    if (!domain) return 0;
+    int max_len = 0, cur = 0;
+    for (const char *p = domain; ; ++p) {
+        if (*p == '.' || *p == '\0') {
+            if (cur > max_len) max_len = cur;
+            cur = 0;
+            if (*p == '\0') break;
+        } else {
+            cur++;
+        }
+    }
+    return max_len;
+}
+
+int parse_dns(const uint8_t *data, size_t len, protocol_ctx_t *ctx) {
+    if (!data || !ctx || len < 12) return -1;
+
+    memset(ctx->domain, 0, sizeof(ctx->domain));
+    ctx->proto = PROTO_DNS;
+    ctx->flags = ((uint32_t)data[2] << 8) | data[3];
+
+    if (dns_extract_qname(data, len, ctx->domain, sizeof(ctx->domain)) != 0) {
+        return -1;
+    }
+
+    ctx->entropy = dns_entropy_score(ctx->domain);
+    return 0;
+}
+
+bool dns_is_malicious(const protocol_ctx_t *ctx) {
+    if (!ctx) return false;
+
+    size_t domain_len = strlen(ctx->domain);
+    int labels = dns_count_labels(ctx->domain);
+    int longest = dns_longest_label(ctx->domain);
+
+    if (domain_len >= 52) return true;
+    if (longest >= 24) return true;
+    if (labels >= 5) return true;
+    if (ctx->entropy >= 4.0f) return true;
+
+    if (strstr(ctx->domain, "xn--") != NULL && ctx->entropy >= 3.5f) return true;
+
+    return false;
+}
