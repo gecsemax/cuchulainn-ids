@@ -1,0 +1,145 @@
+/*
+ * CuChulainn IDS v5.1 - HTTP/1.1 Parser
+ * Detects suspicious URI and header patterns related to
+ * SQL injection, XSS, path traversal, request smuggling,
+ * and malformed or highly suspicious HTTP requests.
+ */
+
+#include "protocol_parser.h"
+#include <string.h>
+#include <stdint.h>
+#include <ctype.h>
+
+static int http_find_line_end(const uint8_t *data, size_t len) {
+    for (size_t i = 0; i + 1 < len; i++) {
+        if (data[i] == '\r' && data[i + 1] == '\n') return (int)i;
+    }
+    return -1;
+}
+
+static int http_contains_case_insensitive(const char *haystack, const char *needle) {
+    if (!haystack || !needle) return 0;
+
+    size_t nlen = strlen(needle);
+    if (nlen == 0) return 1;
+
+    for (const char *p = haystack; *p; p++) {
+        size_t i = 0;
+        while (p[i] && needle[i] &&
+               tolower((unsigned char)p[i]) == tolower((unsigned char)needle[i])) {
+            i++;
+        }
+        if (i == nlen) return 1;
+    }
+
+    return 0;
+}
+
+static int http_is_method(const uint8_t *data, size_t len) {
+    const char *methods[] = {
+        "GET ", "POST ", "PUT ", "DELETE ", "HEAD ",
+        "OPTIONS ", "PATCH ", "TRACE ", "CONNECT "
+    };
+
+    for (size_t i = 0; i < sizeof(methods) / sizeof(methods[0]); i++) {
+        size_t mlen = strlen(methods[i]);
+        if (len >= mlen && memcmp(data, methods[i], mlen) == 0) return 1;
+    }
+    return 0;
+}
+
+static void http_copy_request_target(const uint8_t *data, size_t len, protocol_ctx_t *ctx) {
+    const uint8_t *sp1 = memchr(data, ' ', len);
+    if (!sp1) return;
+    sp1++;
+
+    const uint8_t *sp2 = memchr(sp1, ' ', len - (size_t)(sp1 - data));
+    if (!sp2) return;
+
+    size_t uri_len = (size_t)(sp2 - sp1);
+    if (uri_len >= sizeof(ctx->uri)) uri_len = sizeof(ctx->uri) - 1;
+
+    memcpy(ctx->uri, sp1, uri_len);
+    ctx->uri[uri_len] = '\0';
+}
+
+static unsigned int http_suspicion_score(const char *uri, const uint8_t *data, size_t len) {
+    unsigned int score = 0;
+    if (!uri) return score;
+
+    /* SQLi indicators */
+    if (http_contains_case_insensitive(uri, "union select")) score += 4;
+    if (http_contains_case_insensitive(uri, "' or 1=1")) score += 4;
+    if (http_contains_case_insensitive(uri, "sleep(")) score += 3;
+    if (http_contains_case_insensitive(uri, "benchmark(")) score += 3;
+    if (http_contains_case_insensitive(uri, "information_schema")) score += 4;
+    if (http_contains_case_insensitive(uri, "xp_cmdshell")) score += 5;
+
+    /* XSS indicators */
+    if (http_contains_case_insensitive(uri, "<script")) score += 4;
+    if (http_contains_case_insensitive(uri, "%3cscript")) score += 4;
+    if (http_contains_case_insensitive(uri, "javascript:")) score += 4;
+    if (http_contains_case_insensitive(uri, "onerror=")) score += 3;
+    if (http_contains_case_insensitive(uri, "onload=")) score += 3;
+    if (http_contains_case_insensitive(uri, "alert(")) score += 2;
+
+    /* Path traversal / file access */
+    if (strstr(uri, "../")) score += 4;
+    if (strstr(uri, "..%2f") || strstr(uri, "..%2F")) score += 4;
+    if (http_contains_case_insensitive(uri, "/etc/passwd")) score += 5;
+    if (http_contains_case_insensitive(uri, "win.ini")) score += 4;
+
+    /* SSRF / parser confusion */
+    if (http_contains_case_insensitive(uri, "http://127.0.0.1")) score += 2;
+    if (http_contains_case_insensitive(uri, "http://169.254.169.254")) score += 5;
+    if (strchr(uri, '\\')) score += 2;
+    if (strchr(uri, '@')) score += 1;
+
+    /* Request smuggling hints in headers/body chunk */
+    if (len > 0) {
+        const char *raw = (const char *)data;
+        if (http_contains_case_insensitive(raw, "transfer-encoding: chunked") &&
+            http_contains_case_insensitive(raw, "content-length:")) {
+            score += 5;
+        }
+        if (http_contains_case_insensitive(raw, "content-length: 0") &&
+            http_contains_case_insensitive(raw, "transfer-encoding:")) {
+            score += 3;
+        }
+    }
+
+    if (strlen(uri) > 180) score += 2;
+
+    return score;
+}
+
+int parse_http1(const uint8_t *data, size_t len, protocol_ctx_t *ctx) {
+    if (!data || !ctx || len < 8) return -1;
+    if (!http_is_method(data, len) && !(len >= 7 && memcmp(data, "HTTP/1.", 7) == 0)) return -1;
+
+    ctx->proto = PROTO_HTTP1;
+    memset(ctx->uri, 0, sizeof(ctx->uri));
+
+    int line_end = http_find_line_end(data, len);
+    if (line_end < 0) return -1;
+
+    http_copy_request_target(data, (size_t)line_end, ctx);
+    ctx->flags = http_suspicion_score(ctx->uri, data, len);
+
+    return 0;
+}
+
+bool http_is_malicious(const protocol_ctx_t *ctx) {
+    if (!ctx) return false;
+
+    if (ctx->flags >= 4) return true;
+
+    if (strstr(ctx->uri, "../")) return true;
+    if (http_contains_case_insensitive(ctx->uri, "union select")) return true;
+    if (http_contains_case_insensitive(ctx->uri, "<script")) return true;
+    if (http_contains_case_insensitive(ctx->uri, "%3cscript")) return true;
+    if (http_contains_case_insensitive(ctx->uri, "javascript:")) return true;
+    if (http_contains_case_insensitive(ctx->uri, "/etc/passwd")) return true;
+
+    return false;
+}
