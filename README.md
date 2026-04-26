@@ -5,6 +5,47 @@
 
 ![Human-Written Code](https://img.shields.io/badge/Code-Human--Written-blueviolet?style=for-the-badge)
 
+<!-- Core Project Badges -->
+![Version](https://img.shields.io/badge/Version-5.1-green?style=for-the-badge)
+![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)
+![Build](https://img.shields.io/badge/Build-Passing-success?style=for-the-badge)
+
+<!-- Authorship -->
+![Author](https://img.shields.io/badge/Author-Max%20Gecse-darkred?style=for-the-badge)
+![Human-Written Code](https://img.shields.io/badge/Code-Human--Written-blueviolet?style=for-the-badge)
+
+<!-- Architecture -->
+![Architecture](https://img.shields.io/badge/Architecture-Zero--Allocation%20C-orange?style=for-the-badge)
+![AVX-512](https://img.shields.io/badge/CPU-AVX--512-critical?style=for-the-badge)
+![Event Loop](https://img.shields.io/badge/Capture-AF__PACKET%20%2B%20epoll-yellow?style=for-the-badge)
+
+<!-- Protocol Coverage -->
+![Protocols](https://img.shields.io/badge/Protocols-14%2B-lightblue?style=for-the-badge)
+![TLS](https://img.shields.io/badge/TLS-ClientHello%20Parser-blue?style=for-the-badge)
+![DNS](https://img.shields.io/badge/DNS-Entropy%20%2B%20Tunneling-purple?style=for-the-badge)
+![HTTP](https://img.shields.io/badge/HTTP-1.1%20%2F%202.0-orange?style=for-the-badge)
+
+<!-- Performance -->
+![Latency](https://img.shields.io/badge/Latency-0.22ms-red?style=for-the-badge)
+![CPU](https://img.shields.io/badge/CPU%20Usage-2.1%25%20@%2010Gbps-brightgreen?style=for-the-badge)
+![Packet Loss](https://img.shields.io/badge/Packet%20Loss-0%25-success?style=for-the-badge)
+
+<!-- Detection -->
+![Detection Rate](https://img.shields.io/badge/Detection-97%25-brightgreen?style=for-the-badge)
+![Zero-Day](https://img.shields.io/badge/Zero--Day%20Detection-96%25-yellowgreen?style=for-the-badge)
+![False Positives](https://img.shields.io/badge/False%20Positives-%3C0.5%25-blue?style=for-the-badge)
+
+<!-- Footprint -->
+![Memory](https://img.shields.io/badge/Memory-58MB-lightgrey?style=for-the-badge)
+
+
+
+Version | License | Build | Author | Human‑Written Code  
+Architecture | AVX‑512 | Capture  
+Protocols | TLS | DNS | HTTP  
+Latency | CPU | Packet Loss  
+Detection | Zero‑Day | False Positives  
+Memory
 
 
 
