@@ -316,4 +316,17 @@ Protocol modules, parsers, and performance improvements are especially appreciat
 # 📜 License
 
 CuChulainn IDS is released under the **Apache 2.0 License**.
+CuChulainn IDS v5.1
+Copyright (c) 2026  
+Max Gecse
+
+CuChulainn IDS v5.1 is released under the Apache License, Version 2.0.  
+You may not use this project except in compliance with the License.
+
+Unless required by applicable law or agreed to in writing, software  
+distributed under the License is distributed on an "AS IS" BASIS,  
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
+Written by Max Gecse.
+
 
