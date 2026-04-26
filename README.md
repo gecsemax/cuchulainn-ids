@@ -4,9 +4,6 @@
 
 ![CuChulainn](https://img.shields.io/badge/CuChulainn-IDS-003b24?style=for-the-badge&logo=codeforces&logoColor=00ff99)
 
-<p align="center">
-  <img src="cuchulainn_banner_dark.svg" alt="CuChulainn IDS Dark Celtic Banner">
-</p>
 
 
 <p align="center">
