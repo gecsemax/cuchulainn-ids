@@ -1,3 +1,4 @@
+> ⚔️ **CuChulainn IDS v5.1** — Apache 2.0 License — Written by **Max Gecse**
 
 # 🛡️ **CuChulainn IDS v5.1** ![CuChulainn Authorship](https://img.shields.io/badge/Code-Max%20Gecse%20%E2%80%94%20Human%20Authored-darkgreen?style=for-the-badge)      
 
@@ -328,5 +329,9 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 
 Written by Max Gecse.
+
+
+---
+
 
 
