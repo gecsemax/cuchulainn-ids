@@ -1,0 +1,36 @@
+                         ┌──────────────────────────────────────────┐
+                         │        Traffic Generator Machine         │
+                         │------------------------------------------│
+                         │  • MoonGen / tcpreplay                   │
+                         │  • Safe synthetic protocol traffic       │
+                         │  • Labeled benign + suspicious patterns  │
+                         │  • 1–10 Gbps output sweep                │
+                         │                                          │
+                         │  CPU: Xeon Silver 4314                   │
+                         │  NIC: Intel X710 10GbE                   │
+                         └───────────────┬──────────────────────────┘
+                                         │
+                                         │ 10GbE Direct Link
+                                         │ (No switch; no bottlenecks)
+                                         ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│                         CuChulainn IDS Machine                             │
+│────────────────────────────────────────────────────────────────────────────│
+│  • AF_PACKET raw capture (non‑blocking)                                    │
+│  • epoll event loop                                                        │
+│  • AVX‑512 accelerated protocol detection                                  │
+│  • Per‑protocol parsers (TLS/DNS/HTTP1/HTTP2/SMTP/IMAP/POP3/FTP/SIP/NTP)   │
+│  • ML zero‑day detection (optional)                                        │
+│  • Zero‑allocation hot path                                                │
+│                                                                            │
+│  Measurement Points:                                                       │
+│    → Throughput (Gbps, pps)                                                │
+│    → Packet loss (internal counters)                                       │
+│    → Latency (timestamp delta)                                             │
+│    → CPU usage (perf/top)                                                  │
+│    → Detection rate (Profile B labels)                                     │
+│                                                                            │
+│  CPU: Xeon Silver 4314                                                     │
+│  NIC: Intel X710 10GbE                                                     │
+│  Kernel: Linux 6.x                                                         │
+└────────────────────────────────────────────────────────────────────────────┘
