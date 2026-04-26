@@ -1,131 +1,61 @@
 <svg width="420" height="120" viewBox="0 0 420 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">CuChulainn IDS</title>
-  <desc id="desc">Dark Celtic warrior logo banner for the CuChulainn intrusion detection system</desc>
+  <desc id="desc">Minimal dark badge logo for CuChulainn IDS</desc>
 
-  <defs>
-    <!-- Dark background gradient -->
-    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%"  stop-color="#020308"/>
-      <stop offset="45%" stop-color="#050814"/>
-      <stop offset="100%" stop-color="#080d1c"/>
-    </linearGradient>
+  <!-- Full dark background so it looks the same in light/dark themes -->
+  <rect x="0" y="0" width="420" height="120" rx="18" ry="18" fill="#020617"/>
 
-    <!-- Warrior plate gradient -->
-    <linearGradient id="plateGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#101320"/>
-      <stop offset="100%" stop-color="#181d32"/>
-    </linearGradient>
-
-    <!-- Accent border -->
-    <linearGradient id="borderGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#00e0ff"/>
-      <stop offset="50%" stop-color="#2dd5a0"/>
-      <stop offset="100%" stop-color="#7c3aed"/>
-    </linearGradient>
-
-    <!-- Warrior glow -->
-    <filter id="softGlow">
-      <feGaussianBlur stdDeviation="3" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-  </defs>
-
-  <!-- Outer rounded frame -->
-  <rect x="2" y="2" width="416" height="116" rx="18" ry="18"
-        fill="url(#bgGrad)" stroke="url(#borderGrad)" stroke-width="2"/>
-
-  <!-- Subtle top-left to bottom-right scan line -->
-  <line x1="0" y1="20" x2="420" y2="100"
-        stroke="#00e0ff" stroke-width="0.6" opacity="0.18"/>
-
-  <!-- Left side warrior emblem block -->
-  <g transform="translate(22,14)" filter="url(#softGlow)">
-    <!-- Plate -->
-    <rect x="0" y="0" width="120" height="92" rx="14" ry="14"
-          fill="url(#plateGrad)" stroke="#283046" stroke-width="1.4"/>
-
-    <!-- Warrior helmet silhouette (Celtic-style) -->
-    <!-- Stylized side profile: crest, face guard, cheek plate -->
+  <!-- Left icon: very simple shield + spear -->
+  <g transform="translate(28,20)">
+    <!-- Shield outline -->
     <path d="
-      M32 18
-      C40 10, 58 8, 74 14
-      C62 20, 56 30, 54 40
-      L50 38
-      C48 32, 44 28, 38 26
-      C32 24, 26 26, 24 32
-      C22 38, 24 44, 28 48
-      C32 52, 40 54, 46 52
-      L52 62
-      C44 68, 34 70, 26 68
-      C18 66, 12 60, 10 52
-      C8 44, 10 34, 16 28
-      C20 24, 26 20, 32 18 Z"
-      fill="#05070f" stroke="#00e0ff" stroke-width="1.6"/>
+      M32 6
+      L68 12
+      L68 44
+      C68 58, 52 70, 32 78
+      C12 70, -4 58, -4 44
+      L-4 12
+      Z"
+      fill="none"
+      stroke="#22d3ee"
+      stroke-width="2"/>
 
-    <!-- Knot-like cheek ornament -->
+    <!-- Inner shield line -->
     <path d="
-      M34 40
-      C38 38, 42 38, 44 40
-      C46 42, 46 46, 44 48
-      C42 50, 38 50, 36 48
-      C34 46, 34 42, 36 40 Z"
-      fill="none" stroke="#2dd5a0" stroke-width="1.4"/>
+      M24 16
+      L56 20
+      L56 42
+      C56 51, 46 60, 32 66
+      C18 60, 8 51, 8 42
+      L8 20
+      Z"
+      fill="none"
+      stroke="#4ade80"
+      stroke-width="1.4"/>
 
-    <!-- Spear (forward, signaling detection/attack) -->
-    <line x1="18" y1="70" x2="94" y2="42"
-          stroke="#eab308" stroke-width="2.4" stroke-linecap="round"/>
-    <polygon points="94,42 88,38 100,36"
-             fill="#eab308"/>
-
-    <!-- Faint circular aura behind helmet -->
-    <circle cx="52" cy="40" r="30" fill="none" stroke="#1f2937" stroke-width="1.2"/>
-    <circle cx="52" cy="40" r="22" fill="none" stroke="#0f172a" stroke-width="1"/>
+    <!-- Spear -->
+    <line x1="2" y1="64" x2="66" y2="26"
+          stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
+    <polygon points="66,26 60,22 72,20"
+             fill="#22d3ee"/>
   </g>
 
   <!-- Text block -->
-  <g transform="translate(150,32)">
-    <!-- Project name -->
+  <g transform="translate(150,46)">
     <text x="0" y="0"
           font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-          font-size="28"
-          letter-spacing="1.4"
-          fill="#e5e7ff">
+          font-size="30"
+          letter-spacing="1.2"
+          fill="#e5e7eb">
       CuChulainn
     </text>
 
-    <!-- IDS pill -->
-    <rect x="0" y="12" width="104" height="24" rx="12" ry="12"
-          fill="#020617" stroke="#00e0ff" stroke-width="1.2"/>
-    <text x="52" y="29"
+    <text x="0" y="26"
           font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-          font-size="13"
-          text-anchor="middle"
-          fill="#a5f3fc">
-      INTRUSION DETECTION
-    </text>
-
-    <!-- Tagline -->
-    <text x="0" y="54"
-          font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-          font-size="11"
-          fill="#9ca3c9">
-      Celtic warrior at the gateway · Watch, detect, respond
+          font-size="14"
+          letter-spacing="4"
+          fill="#6b7280">
+      IDS
     </text>
   </g>
-
-  <!-- Thin inner frame for extra contrast -->
-  <rect x="8" y="8" width="404" height="104" rx="14" ry="14"
-        fill="none" stroke="#0b1220" stroke-width="1"/>
-
-  <!-- Very subtle pulsing border for a living feel -->
-  <rect x="4" y="4" width="412" height="112" rx="16" ry="16"
-        fill="none" stroke="#00e0ff" stroke-width="1" opacity="0.0">
-    <animate attributeName="opacity"
-             values="0;0.35;0"
-             dur="3.6s"
-             repeatCount="indefinite"/>
-  </rect>
 </svg>
