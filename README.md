@@ -333,6 +333,3 @@ Protocol modules, parsers, and performance improvements are especially appreciat
 
 CuChulainn IDS is released under the **Apache 2.0 License**.
 
-
-
-Just tell me what you want next.
