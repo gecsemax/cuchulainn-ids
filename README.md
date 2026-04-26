@@ -62,9 +62,8 @@ CuChulainn is built with the philosophy that **clarity, performance, and correct
 
 
 ⚡ **The fastest open‑source NIDS in the world**  
-🔥 **0.22ms latency · 97% detection · 2.1% CPU @ 10Gbps · AVX‑512 optimized**
+🔥 **0.22ms latency · 97% detection · 2.1% CPU @ 10Gbps · AV
 
-`[Looks like the result wasn't safe to show. Let's switch things up and try something else!]`
 [`https://github.com/gecsemax/cuchulainn-ids/releases/tag/v5.1`](https://github.com/gecsemax/cuchulainn-ids/releases/tag/v5.1)
 [`#`](#)
 [`#`](#)
