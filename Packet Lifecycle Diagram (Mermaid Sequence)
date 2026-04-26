@@ -1,0 +1,19 @@
+# ✅ **5. Packet Lifecycle Diagram (Mermaid Sequence)**
+
+```markdown
+```mermaid
+sequenceDiagram
+    participant NIC as NIC
+    participant CAP as AF_PACKET Capture
+    participant DET as Protocol Detector
+    participant PAR as Parser
+    participant ML as ML Engine
+    participant OUT as Alert/Stats
+
+    NIC->>CAP: Raw Ethernet frame
+    CAP->>DET: Pass payload
+    DET->>PAR: Dispatch to protocol parser
+    PAR->>ML: Extract features (optional)
+    ML->>OUT: Suspicion score
+    PAR->>OUT: Flags, domain, URI
+    OUT->>OUT: Log alert + update counters
