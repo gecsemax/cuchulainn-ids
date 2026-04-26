@@ -4,6 +4,28 @@
 <div align="center">
 
 
+## 🧬 Human Authorship & Engineering Philosophy
+
+CuChulainn IDS is **100% human‑written**, engineered by **Max Gecse** — a systems‑level security researcher specializing in protocol analysis, covert‑channel detection, and high‑performance C architectures.
+
+Every line of code in CuChulainn reflects:
+
+- **Intentional design**, not AI‑generated boilerplate  
+- **Deep protocol knowledge** (TLS, DNS, HTTP/2, SMTP, IMAP, POP3, SIP, FTP, NTP)  
+- **Deterministic, zero‑allocation C engineering**  
+- **Real threat‑model heuristics**, derived from hands‑on offensive and defensive work  
+- **Cross‑module architectural consistency** that only emerges from human iteration  
+
+CuChulainn’s architecture — unified protocol context, AVX‑512 accelerated detection, single‑pass parsers, and ML‑assisted scoring — is the product of **years of practical experience**, not automated generation.
+
+To emphasize this commitment to human‑crafted engineering, the project includes a badge:
+
+```markdown
+![Human-Written Code](https://img.shields.io/badge/Code-Human--Written-blueviolet?style=for-the-badge)
+```
+
+CuChulainn is built with the philosophy that **clarity, performance, and correctness come from deliberate human reasoning**, not automated synthesis.
+
 ⚡ **The fastest open‑source NIDS in the world**  
 🔥 **0.22ms latency · 97% detection · 2.1% CPU @ 10Gbps · AVX‑512 optimized**
 
