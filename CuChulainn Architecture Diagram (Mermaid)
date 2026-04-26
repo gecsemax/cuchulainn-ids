@@ -1,0 +1,32 @@
+
+
+# ✅ **4. CuChulainn Architecture Diagram (Mermaid)**
+
+```markdown
+```mermaid
+flowchart TD
+    CAP[AF_PACKET Capture<br/>Non-blocking, epoll] --> DET[Protocol Detection<br/>Heuristic classifier]
+    DET --> PARSERS{Protocol Parsers}
+    PARSERS -->|TLS| TLS[TLS ClientHello Parser<br/>SNI extraction<br/>Version checks]
+    PARSERS -->|DNS| DNS[DNS Parser<br/>QNAME extraction<br/>Entropy]
+    PARSERS -->|HTTP1| H1[HTTP/1.1 Parser<br/>URI extraction<br/>SQLi/XSS heuristics]
+    PARSERS -->|HTTP2| H2[HTTP/2 Parser<br/>Frame analysis<br/>Rapid Reset heuristics]
+    PARSERS -->|SMTP| SMTP[SMTP Parser<br/>Sender domain<br/>Phishing heuristics]
+    PARSERS -->|IMAP| IMAP[IMAP Parser<br/>Mailbox scraping detection]
+    PARSERS -->|POP3| POP3[POP3 Parser<br/>Login/scraping heuristics]
+    PARSERS -->|FTP| FTP[FTP Parser]
+    PARSERS -->|SIP| SIP[SIP Parser]
+    PARSERS -->|NTP| NTP[NTP Parser]
+
+    TLS --> SCORE
+    DNS --> SCORE
+    H1 --> SCORE
+    H2 --> SCORE
+    SMTP --> SCORE
+    IMAP --> SCORE
+    POP3 --> SCORE
+    FTP --> SCORE
+    SIP --> SCORE
+    NTP --> SCORE
+
+    SCORE[Scoring Engine<br/>Heuristics + ML] --> ALERT[Alerting & Stats]
