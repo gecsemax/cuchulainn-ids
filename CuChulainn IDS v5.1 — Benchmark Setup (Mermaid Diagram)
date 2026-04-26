@@ -1,0 +1,13 @@
+flowchart LR
+    TG[Traffic Generator Machine<br/>• MoonGen / tcpreplay<br/>• Safe synthetic traffic<br/>• Labeled benign + suspicious patterns<br/>• 1–10 Gbps sweep] 
+        ---|10GbE Direct Link| IDS
+
+    subgraph IDS[CuChulainn IDS Machine]
+        CP[AF_PACKET Capture<br/>• Non-blocking raw socket<br/>• epoll event loop]
+        PD[Protocol Detection<br/>• TLS / DNS / HTTP1 / HTTP2<br/>• SMTP / IMAP / POP3 / FTP / SIP / NTP]
+        PX[Per‑Protocol Parsers<br/>• Zero‑allocation<br/>• Deterministic C<br/>• AVX‑512 accelerated]
+        ML[ML Zero‑Day Detection<br/>• Feature extraction<br/>• Suspicious pattern scoring]
+        AL[Alerting & Stats<br/>• Per‑protocol counters<br/>• Detection rate<br/>• Packet loss<br/>• Latency]
+    end
+
+    TG --> CP --> PD --> PX --> ML --> AL
