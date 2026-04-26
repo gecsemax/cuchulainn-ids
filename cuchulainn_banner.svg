@@ -1,0 +1,39 @@
+<svg width="100%" height="180" viewBox="0 0 1200 180" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Background -->
+  <rect width="1200" height="180" fill="#0b1a0f"/>
+
+  <!-- Celtic knot pattern (subtle, repeating) -->
+  <defs>
+    <pattern id="knot" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M0 30 Q30 0 60 30 Q30 60 0 30 Z" fill="none" stroke="#145c33" stroke-width="2" opacity="0.25"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="180" fill="url(#knot)" opacity="0.35"/>
+
+  <!-- Spear motif (CuChulainn's Gae Bolg) -->
+  <path d="M100 90 L350 90" stroke="#00ff99" stroke-width="6" stroke-linecap="round"/>
+  <polygon points="350,90 330,80 330,100" fill="#00ff99"/>
+
+  <!-- Title -->
+  <text x="380" y="75" font-family="Georgia, serif" font-size="48" fill="#e6ffe6" font-weight="bold">
+    CuChulainn IDS
+  </text>
+
+  <!-- Version -->
+  <text x="380" y="120" font-family="Georgia, serif" font-size="28" fill="#00ff99">
+    v5.1 — Apache 2.0 License
+  </text>
+
+  <!-- Author -->
+  <text x="380" y="155" font-family="Georgia, serif" font-size="22" fill="#7affc6">
+    Written by Max Gecse
+  </text>
+
+  <!-- Right-side Celtic knot emblem -->
+  <circle cx="1080" cy="90" r="55" fill="none" stroke="#00ff99" stroke-width="4"/>
+  <circle cx="1080" cy="90" r="40" fill="none" stroke="#00ff99" stroke-width="2"/>
+  <path d="M1080 50 Q1120 90 1080 130 Q1040 90 1080 50 Z"
+        fill="none" stroke="#00ff99" stroke-width="3"/>
+
+</svg>
