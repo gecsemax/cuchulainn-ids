@@ -1,7 +1,8 @@
 
-# 🛡️ **CuChulainn IDS v5.1** 
+# 🛡️ **CuChulainn IDS v5.1** ![CuChulainn Authorship](https://img.shields.io/badge/Code-Max%20Gecse%20%E2%80%94%20Human%20Authored-darkgreen?style=for-the-badge)
+
 <div align="center">
-![CuChulainn Authorship](https://img.shields.io/badge/Code-Max%20Gecse%20%E2%80%94%20Human%20Authored-darkgreen?style=for-the-badge)
+
 
 ⚡ **The fastest open‑source NIDS in the world**  
 🔥 **0.22ms latency · 97% detection · 2.1% CPU @ 10Gbps · AVX‑512 optimized**
