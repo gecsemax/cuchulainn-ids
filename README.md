@@ -4,7 +4,9 @@
 ![CuChulainn](https://img.shields.io/badge/CuChulainn-IDS-003b24?style=for-the-badge&logo=codeforces&logoColor=00ff99)
 
 
-
+<p align="center">
+  <img src="cuchulainn_benchmark.png" alt="CuChulainn IDS Benchmark">
+</p>
 
 
 
