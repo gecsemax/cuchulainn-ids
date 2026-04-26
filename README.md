@@ -3,6 +3,10 @@
 
 <div align="center">
 
+![Human-Written Code](https://img.shields.io/badge/Code-Human--Written-blueviolet?style=for-the-badge)
+
+
+
 
 ## 🧬 Human Authorship & Engineering Philosophy
 
@@ -16,15 +20,14 @@ Every line of code in CuChulainn reflects:
 - **Real threat‑model heuristics**, derived from hands‑on offensive and defensive work  
 - **Cross‑module architectural consistency** that only emerges from human iteration  
 
-CuChulainn’s architecture — unified protocol context, AVX‑512 accelerated detection, single‑pass parsers, and ML‑assisted scoring — is the product of **years of practical experience**, not automated generation.
+CuChulainn’s architecture — unified protocol context, AVX‑512 accelerated detection, single‑pass parsers, and ML‑assisted scoring — is the product of **years of practical experience**, not automated synthesis.
 
 To emphasize this commitment to human‑crafted engineering, the project includes a badge:
 
-```markdown
 ![Human-Written Code](https://img.shields.io/badge/Code-Human--Written-blueviolet?style=for-the-badge)
-```
 
 CuChulainn is built with the philosophy that **clarity, performance, and correctness come from deliberate human reasoning**, not automated synthesis.
+
 
 ⚡ **The fastest open‑source NIDS in the world**  
 🔥 **0.22ms latency · 97% detection · 2.1% CPU @ 10Gbps · AVX‑512 optimized**
