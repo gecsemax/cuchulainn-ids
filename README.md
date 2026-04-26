@@ -1,7 +1,9 @@
 
 # 🛡️ **CuChulainn IDS v5.1** ![CuChulainn Authorship](https://img.shields.io/badge/Code-Max%20Gecse%20%E2%80%94%20Human%20Authored-darkgreen?style=for-the-badge)      
 
-![CuChulainn](https://img.shields.io/badge/CuChulainn-IDS-darkgreen?style=for-the-badge&logo=shield)
+![CuChulainn](https://img.shields.io/badge/CuChulainn-IDS-005f3c?style=for-the-badge&logo=codeforces&logoColor=white)
+[CuChulainn Badge] [Version] [License] [Author] [Human‑Written Code] ...
+
 
 
 
