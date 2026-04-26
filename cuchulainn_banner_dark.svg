@@ -1,0 +1,124 @@
+<svg width="100%" height="200" viewBox="0 0 1200 200" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Background -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#020308"/>
+      <stop offset="50%" stop-color="#050b12"/>
+      <stop offset="100%" stop-color="#020308"/>
+    </linearGradient>
+
+    <!-- Subtle noise / texture via pattern -->
+    <pattern id="noise" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="5" cy="5" r="1" fill="#0f1f1a" opacity="0.4"/>
+      <circle cx="25" cy="15" r="1" fill="#0f1f1a" opacity="0.4"/>
+      <circle cx="15" cy="30" r="1" fill="#0f1f1a" opacity="0.4"/>
+    </pattern>
+
+    <!-- Glowing spear gradient -->
+    <linearGradient id="spearGlow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#00ffcc" stop-opacity="0.1"/>
+      <stop offset="40%" stop-color="#00ffcc" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#00ffcc" stop-opacity="0.1"/>
+    </linearGradient>
+
+    <!-- Rune-like font substitute via stroke style -->
+    <filter id="outerGlow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feColorMatrix in="blur" type="matrix"
+        values="0 0 0 0 0
+                0 1 0 0 0.6
+                0 0 0 0 0.4
+                0 0 0 0.8 0"/>
+    </filter>
+
+    <!-- Celtic ring motif -->
+    <radialGradient id="ringGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#02110b"/>
+      <stop offset="60%" stop-color="#033322"/>
+      <stop offset="100%" stop-color="#00ff99"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background layers -->
+  <rect width="1200" height="200" fill="url(#bgGrad)"/>
+  <rect width="1200" height="200" fill="url(#noise)" opacity="0.35"/>
+
+  <!-- Faint Celtic knot lines in the background -->
+  <path d="M40 40 Q120 0 200 40 T360 40 T520 40 T680 40 T840 40 T1000 40 T1160 40"
+        fill="none" stroke="#063826" stroke-width="2" opacity="0.25"/>
+  <path d="M40 160 Q120 200 200 160 T360 160 T520 160 T680 160 T840 160 T1000 160 T1160 160"
+        fill="none" stroke="#063826" stroke-width="2" opacity="0.25"/>
+
+  <!-- Glowing spear (Gae Bolg) -->
+  <!-- Spear shaft -->
+  <path d="M120 100 L520 100" stroke="url(#spearGlow)" stroke-width="7" stroke-linecap="round"/>
+  <!-- Spear inner core -->
+  <path d="M130 100 L510 100" stroke="#00ffcc" stroke-width="2" stroke-linecap="round" opacity="0.9"/>
+
+  <!-- Spear head -->
+  <polygon points="520,100 495,85 495,115" fill="#00ffcc"/>
+  <polygon points="520,100 505,90 505,110" fill="#02110b" opacity="0.6"/>
+
+  <!-- Spear glow halo -->
+  <ellipse cx="520" cy="100" rx="40" ry="18" fill="#00ffcc" opacity="0.18"/>
+
+  <!-- Left rune cluster (abstract, not real runes) -->
+  <g transform="translate(80,60)" stroke="#00ff99" stroke-width="2" opacity="0.7">
+    <path d="M0 0 L0 40 L10 30"/>
+    <path d="M20 0 L20 40 M20 20 L35 10"/>
+    <path d="M50 0 L50 40 M50 20 L65 30"/>
+  </g>
+
+  <!-- Title with rune-like styling -->
+  <text x="560" y="90"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="44"
+        fill="#e6fff7"
+        letter-spacing="3"
+        style="text-transform: uppercase;">
+    CuChulainn IDS
+  </text>
+
+  <!-- Title glow -->
+  <text x="560" y="90"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="44"
+        fill="#00ffcc"
+        letter-spacing="3"
+        style="text-transform: uppercase;"
+        opacity="0.7"
+        filter="url(#outerGlow)">
+    CuChulainn IDS
+  </text>
+
+  <!-- Subtitle: version + license -->
+  <text x="560" y="130"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="22"
+        fill="#7affc6">
+    v5.1 · Apache 2.0 License · Dark Celtic NIDS
+  </text>
+
+  <!-- Author line -->
+  <text x="560" y="160"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="18"
+        fill="#4de0a0">
+    Written by Max Gecse
+  </text>
+
+  <!-- Right-side Celtic rune ring -->
+  <g transform="translate(1040,100)">
+    <circle cx="0" cy="0" r="60" fill="none" stroke="#00ff99" stroke-width="3"/>
+    <circle cx="0" cy="0" r="42" fill="none" stroke="#00ffcc" stroke-width="2" opacity="0.8"/>
+    <!-- Tri-knot style -->
+    <path d="M0,-32 Q22,-10 0,12 Q-22,-10 0,-32 Z"
+          fill="none" stroke="#00ff99" stroke-width="3"/>
+    <path d="M0,32 Q22,10 0,-12 Q-22,10 0,32 Z"
+          fill="none" stroke="#00ff66" stroke-width="2" opacity="0.8"/>
+    <!-- Inner dot -->
+    <circle cx="0" cy="0" r="4" fill="#00ffcc"/>
+  </g>
+
+</svg>
