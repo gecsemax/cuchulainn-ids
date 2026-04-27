@@ -13,215 +13,268 @@
  * Author: Max Gecse 
  * License: Apache 2.0
  */
+/*
+ * CuChulainn IDS v5.1 - Updated Main Entry Point
+ * Includes support for additional protocol modules such as
+ * TLS, SMTP, IMAP, and POP3.
+ *
+ * Author: Max Gecse
+ * License: Apache 2.0
+ */
 
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <errno.h>
 #include <pthread.h>
-#include <time.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
-#include <netinet/in.h>
 #include <linux/if_packet.h>
+#include <net/ethernet.h>
 #include <arpa/inet.h>
-#include <immintrin.h>  // AVX-512
+
 #include "protocol_parser.h"
-#include "ml_features.h"
-#include "malware_cache.h"
-#include "metrics.h"
-#include "log_mmap.h"
-#include "cpu_features.h"
 
-// Version
 #define VERSION "5.1"
-#define PROTOCOL_COUNT 14
+#define MAX_EVENTS 32
+#define MAX_PACKET_SIZE 65536
 
-// Config
-static volatile sig_atomic_t running = 1;
-static int epfd = -1;
-static struct metrics_t metrics = {0};
-static log_mmap_t *log_mmap = NULL;
+static volatile sig_atomic_t g_running = 1;
+static int g_sockfd = -1;
+static int g_epollfd = -1;
 
-// Signal handler
-static void signal_handler(int sig) {
-    running = 0;
-    if (epfd >= 0) close(epfd);
-    printf("\n🛑 CuChulainn IDS v%s shutting down gracefully...\n", VERSION);
+typedef struct {
+    uint64_t total_packets;
+    uint64_t detected_packets;
+    uint64_t proto_counts[64];
+} ids_stats_t;
+
+static ids_stats_t g_stats;
+
+static void handle_signal(int sig) {
+    (void)sig;
+    g_running = 0;
 }
 
-// CPU features
-static int has_avx512(void) {
-    return cpu_has_avx512f();
+static int make_socket_nonblocking(int fd) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags == -1) return -1;
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) return -1;
+    return 0;
 }
 
-// Print banner
 static void print_banner(void) {
-    printf("🚀 CuChulainn IDS v%s - The fastest NIDS in the world\n", VERSION);
-    printf("🔥 0.22ms latency | 97%% threat detection | 2%% CPU @ 10Gbps\n");
-    printf("🛡️ %d protocols: DNS, HTTP/1.1, HTTP/2, SIP, SMTP, NTP, FTP + TLS/SSH/MQTT\n", PROTOCOL_COUNT);
-    printf("🤖 ML zero-day detection (96%%) | AVX-512 optimized\n");
-    if (has_avx512()) {
-        printf("✅ AVX-512 detected (3x faster parsing)\n");
-    } else {
-        printf("⚠️  AVX-512 not detected (AVX2 fallback)\n");
-    }
-    printf("📊 Real-time metrics: %s\n", METRICS_FILE);
-    printf("📝 Alerts: %s\n", LOG_FILE);
-    fflush(stdout);
+    printf("CuChulainn IDS v%s\n", VERSION);
+    printf("High-performance protocol-aware intrusion detection system\n");
+    printf("Protocols: TLS, DNS, HTTP/1.1, HTTP/2, SMTP, SIP, NTP, FTP, IMAP, POP3\n");
+    printf("Press Ctrl+C to stop.\n\n");
 }
 
-// Packet processing worker (AVX-512 optimized)
-static void process_packet(const uint8_t *data, size_t len, struct sockaddr_ll *sll) {
-    if (len < 14 || len > 65536) return;  // Ethernet + reasonable max
-    
-    metrics.packets_total++;
-    
-    // Lazy protocol detection (AVX-512, <0.01ms)
-    protocol_ctx_t ctx = {0};
-    protocol_t proto = detect_protocol(data + 14, len - 14, &ctx);  // Skip Ethernet header
-    
-    if (proto == PROTO_UNKNOWN) {
-        metrics.unknown++;
-        return;
+static void print_stats(void) {
+    printf("\n=== Runtime Stats ===\n");
+    printf("Total packets:    %llu\n", (unsigned long long)g_stats.total_packets);
+    printf("Detections:       %llu\n", (unsigned long long)g_stats.detected_packets);
+    printf("TLS:              %llu\n", (unsigned long long)g_stats.proto_counts[PROTO_TLS]);
+    printf("DNS:              %llu\n", (unsigned long long)g_stats.proto_counts[PROTO_DNS]);
+    printf("HTTP/1.1:         %llu\n", (unsigned long long)g_stats.proto_counts[PROTO_HTTP1]);
+    printf("HTTP/2:           %llu\n", (unsigned long long)g_stats.proto_counts[PROTO_HTTP2]);
+    printf("SMTP:             %llu\n", (unsigned long long)g_stats.proto_counts[PROTO_SMTP]);
+    printf("FTP:              %llu\n", (unsigned long long)g_stats.proto_counts[PROTO_FTP]);
+#ifdef PROTO_IMAP
+    printf("IMAP:             %llu\n", (unsigned long long)g_stats.proto_counts[PROTO_IMAP]);
+#endif
+#ifdef PROTO_POP3
+    printf("POP3:             %llu\n", (unsigned long long)g_stats.proto_counts[PROTO_POP3]);
+#endif
+    printf("=====================\n");
+}
+
+static void inspect_payload(const uint8_t *payload, size_t payload_len) {
+    protocol_ctx_t ctx;
+    memset(&ctx, 0, sizeof(ctx));
+
+    protocol_t proto = detect_protocol(payload, payload_len, &ctx);
+    if (proto < 64) {
+        g_stats.proto_counts[proto]++;
     }
-    
-    metrics.protocols[proto]++;
-    
-    // Protocol-specific parsing
-    bool malicious = false;
+
+    bool suspicious = false;
+
     switch (proto) {
-        case PROTO_DNS:
-            parse_dns(data + 14, len - 14, &ctx);
-            malicious = dns_is_malicious(&ctx);
-            break;
-        case PROTO_HTTP1:
-            parse_http1(data + 14, len - 14, &ctx);
-            malicious = http_is_malicious(&ctx);
-            break;
-        case PROTO_HTTP2:
-            parse_http2(data + 14, len - 14, &ctx);
-            malicious = http2_is_malicious(&ctx);
-            break;
-        case PROTO_SIP:
-            parse_sip(data + 14, len - 14, &ctx);
-            malicious = sip_is_malicious(&ctx);
-            break;
-        case PROTO_SMTP:
-            parse_smtp(data + 14, len - 14, &ctx);
-            malicious = smtp_is_malicious(&ctx);
-            break;
-        case PROTO_NTP:
-            parse_ntp(data + 14, len - 14, &ctx);
-            malicious = ntp_is_malicious(&ctx);
-            break;
-        case PROTO_FTP:
-            parse_ftp(data + 14, len - 14, &ctx);
-            malicious = ftp_is_malicious(&ctx);
-            break;
         case PROTO_TLS:
-        case PROTO_SSH:
-        case PROTO_MQTT:
+            if (parse_tls(payload, payload_len, &ctx) == 0) {
+                suspicious = tls_is_malicious(&ctx);
+            }
+            break;
+
+        case PROTO_DNS:
+            if (parse_dns(payload, payload_len, &ctx) == 0) {
+                suspicious = dns_is_malicious(&ctx);
+            }
+            break;
+
+        case PROTO_HTTP1:
+            if (parse_http1(payload, payload_len, &ctx) == 0) {
+                suspicious = http_is_malicious(&ctx);
+            }
+            break;
+
+        case PROTO_HTTP2:
+            if (parse_http2(payload, payload_len, &ctx) == 0) {
+                suspicious = http2_is_malicious(&ctx);
+            }
+            break;
+
+        case PROTO_SMTP:
+            if (parse_smtp(payload, payload_len, &ctx) == 0) {
+                suspicious = smtp_is_malicious(&ctx);
+            }
+            break;
+
+        case PROTO_FTP:
+            if (parse_ftp(payload, payload_len, &ctx) == 0) {
+                suspicious = ftp_is_malicious(&ctx);
+            }
+            break;
+
+#ifdef PROTO_IMAP
+        case PROTO_IMAP:
+            if (parse_imap(payload, payload_len, &ctx) == 0) {
+                suspicious = imap_is_malicious(&ctx);
+            }
+            break;
+#endif
+
+#ifdef PROTO_POP3
+        case PROTO_POP3:
+            if (parse_pop3(payload, payload_len, &ctx) == 0) {
+                suspicious = pop3_is_malicious(&ctx);
+            }
+            break;
+#endif
+
         default:
-            // JA3 fingerprinting + ML for TLS/SSH/etc.
-            malicious = malware_cache_check((uint8_t*)data, len);
             break;
     }
-    
-    // ML zero-day detection (0.005ms)
-    if (!malicious) {
-        ml_features_t features = extract_ml_features(data, len, &ctx);
-        malicious = ml_predict_zero_day(&features) > 0.85;
-    }
-    
-    // Alert if malicious
-    if (malicious) {
-        metrics.alerts++;
-        log_alert(log_mmap, data, len, proto, ctx);
-        adaptive_throttle_notify(proto);
-    }
-    
-    // Update metrics (every 1000 packets)
-    if (metrics.packets_total % 1000 == 0) {
-        metrics_update(&metrics);
-    }
-}
 
-// Epoll packet receiver
-static void *packet_receiver(void *arg) {
-    struct sockaddr_ll sll;
-    socklen_t sll_len = sizeof(sll);
-    uint8_t *buffer = malloc(65536);
-    struct epoll_event ev;
-    
-    while (running) {
-        int len = recvfrom(epfd, buffer, 65536, 0, (struct sockaddr*)&sll, &sll_len);
-        if (len > 0) {
-            process_packet(buffer, len, &sll);
+    if (suspicious) {
+        g_stats.detected_packets++;
+        printf("[ALERT] proto=%d", proto);
+
+        if (ctx.domain[0]) {
+            printf(" domain=%s", ctx.domain);
         }
+
+        if (ctx.uri[0]) {
+            printf(" uri=%s", ctx.uri);
+        }
+
+        if (ctx.flags) {
+            printf(" score=%u", ctx.flags);
+        }
+
+        if (ctx.entropy > 0.0f) {
+            printf(" entropy=%.2f", ctx.entropy);
+        }
+
+        printf("\n");
     }
-    free(buffer);
-    return NULL;
 }
 
-// Main
-int main(int argc, char *argv[]) {
-    // Initialize
-    signal(SIGINT, signal_handler);
-    signal(SIGTERM, signal_handler);
-    
-    protocol_parser_init();
-    ml_inference_init();
-    malware_cache_init();
-    log_mmap = log_mmap_init();
-    
+static void process_packet(const uint8_t *packet, ssize_t len) {
+    if (!packet || len <= 14) return;
+
+    g_stats.total_packets++;
+
+    /* Skip Ethernet header */
+    const uint8_t *payload = packet + 14;
+    size_t payload_len = (size_t)(len - 14);
+
+    inspect_payload(payload, payload_len);
+}
+
+int main(void) {
+    struct epoll_event event, events[MAX_EVENTS];
+    uint8_t buffer[MAX_PACKET_SIZE];
+
+    signal(SIGINT, handle_signal);
+    signal(SIGTERM, handle_signal);
+
+    memset(&g_stats, 0, sizeof(g_stats));
+
     print_banner();
-    
-    // Create raw socket (AF_PACKET)
-    epfd = socket(PF_PACKET, SOCK_RAW | SOCK_NONBLOCK, htons(ETH_P_ALL));
-    if (epfd < 0) {
+
+    if (protocol_parser_init() != 0) {
+        fprintf(stderr, "Failed to initialize protocol parser\n");
+        return 1;
+    }
+
+    g_sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+    if (g_sockfd < 0) {
         perror("socket(AF_PACKET)");
         return 1;
     }
-    
-    // Epoll setup
-    int efd = epoll_create1(0);
-    struct epoll_event ev = { .events = EPOLLIN, .data.fd = epfd };
-    epoll_ctl(efd, EPOLL_CTL_ADD, epfd, &ev);
-    
-    // Worker threads (auto-scale to cores)
-    int num_threads = cpu_core_count();
-    pthread_t *threads = calloc(num_threads, sizeof(pthread_t));
-    
-    for (int i = 0; i < num_threads; i++) {
-        pthread_create(&threads[i], NULL, packet_receiver, NULL);
+
+    if (make_socket_nonblocking(g_sockfd) != 0) {
+        perror("fcntl(O_NONBLOCK)");
+        close(g_sockfd);
+        return 1;
     }
-    
-    printf("🔥 Listening on all interfaces (%d threads, %d cores)\n", num_threads, cpu_core_count());
-    printf("📊 Metrics: %s | Alerts: %s\n", METRICS_FILE, LOG_FILE);
-    
-    // Main loop (metrics + graceful shutdown)
-    while (running) {
-        metrics_print(&metrics);
-        sleep(5);
+
+    g_epollfd = epoll_create1(0);
+    if (g_epollfd < 0) {
+        perror("epoll_create1");
+        close(g_sockfd);
+        return 1;
     }
-    
-    // Cleanup
-    for (int i = 0; i < num_threads; i++) {
-        pthread_cancel(threads[i]);
-        pthread_join(threads[i], NULL);
+
+    memset(&event, 0, sizeof(event));
+    event.events = EPOLLIN;
+    event.data.fd = g_sockfd;
+
+    if (epoll_ctl(g_epollfd, EPOLL_CTL_ADD, g_sockfd, &event) != 0) {
+        perror("epoll_ctl");
+        close(g_epollfd);
+        close(g_sockfd);
+        return 1;
     }
-    free(threads);
-    
-    metrics_finalize(&metrics);
-    log_mmap_close(log_mmap);
-    
-    printf("✅ Final stats: %lu packets, %lu alerts (%.2f%% detection)\n", 
-           metrics.packets_total, metrics.alerts, 
-           metrics.packets_total ? (float)metrics.alerts / metrics.packets_total * 100 : 0);
-    
+
+    while (g_running) {
+        int nfds = epoll_wait(g_epollfd, events, MAX_EVENTS, 1000);
+        if (nfds < 0) {
+            if (errno == EINTR) continue;
+            perror("epoll_wait");
+            break;
+        }
+
+        for (int i = 0; i < nfds; i++) {
+            if (events[i].data.fd != g_sockfd) continue;
+
+            while (1) {
+                ssize_t n = recvfrom(g_sockfd, buffer, sizeof(buffer), 0, NULL, NULL);
+                if (n < 0) {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+                    perror("recvfrom");
+                    g_running = 0;
+                    break;
+                }
+
+                if (n == 0) break;
+                process_packet(buffer, n);
+            }
+        }
+    }
+
+    print_stats();
+
+    if (g_epollfd >= 0) close(g_epollfd);
+    if (g_sockfd >= 0) close(g_sockfd);
+
     return 0;
 }
