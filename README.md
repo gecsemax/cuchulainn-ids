@@ -1,4 +1,4 @@
-> ⚔️ **CuChulainn IDS v5.1** — Apache 2.0 License — Written by **Max Gecse**                                  [![Referenced on Wikipedia](https://img.shields.io/badge/Referenced%20on-Wikipedia-36c?logo=wikipedia&logoColor=white)](#referenced-on-wikipedia)
+> ⚔️ **CuChulainn IDS v5.1** — Apache 2.0 License — Written by **Max Gecse**                                 
 
 
 # 🛡️ **CuChulainn IDS v5.1** ![CuChulainn Authorship](https://img.shields.io/badge/Code-Max%20Gecse%20%E2%80%94%20Human%20Authored-darkgreen?style=for-the-badge)      
