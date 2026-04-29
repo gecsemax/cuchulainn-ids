@@ -1,14 +1,8 @@
-/*
- * CuChulainn IDS v5.1 - HTTP/1.1 Parser
- * Detects suspicious URI and header patterns related to
- * SQL injection, XSS, path traversal, request smuggling,
- * and malformed or highly suspicious HTTP requests.
- */
-
 #include "protocol_parser.h"
 #include <string.h>
 #include <stdint.h>
 #include <ctype.h>
+#include <limits.h>
 
 static int http_find_line_end(const uint8_t *data, size_t len) {
     for (size_t i = 0; i + 1 < len; i++) {
@@ -17,21 +11,67 @@ static int http_find_line_end(const uint8_t *data, size_t len) {
     return -1;
 }
 
-static int http_contains_case_insensitive(const char *haystack, const char *needle) {
+static int http_find_headers_end(const uint8_t *data, size_t len) {
+    for (size_t i = 0; i + 3 < len; i++) {
+        if (data[i] == '\r' && data[i + 1] == '\n' &&
+            data[i + 2] == '\r' && data[i + 3] == '\n') {
+            return (int)(i + 4);
+        }
+    }
+    return -1;
+}
+
+static int http_contains_case_insensitive_n(const uint8_t *haystack, size_t hlen,
+                                            const char *needle) {
     if (!haystack || !needle) return 0;
 
     size_t nlen = strlen(needle);
     if (nlen == 0) return 1;
+    if (hlen < nlen) return 0;
 
-    for (const char *p = haystack; *p; p++) {
+    for (size_t p = 0; p + nlen <= hlen; p++) {
         size_t i = 0;
-        while (p[i] && needle[i] &&
-               tolower((unsigned char)p[i]) == tolower((unsigned char)needle[i])) {
+        while (i < nlen &&
+               tolower((unsigned char)haystack[p + i]) ==
+               tolower((unsigned char)needle[i])) {
             i++;
         }
         if (i == nlen) return 1;
     }
+    return 0;
+}
 
+static int http_header_name_eq(const uint8_t *name, size_t len, const char *lit) {
+    size_t n = strlen(lit);
+    if (len != n) return 0;
+    for (size_t i = 0; i < n; i++) {
+        if (tolower((unsigned char)name[i]) != tolower((unsigned char)lit[i])) return 0;
+    }
+    return 1;
+}
+
+static int http_parse_content_length(const uint8_t *v, size_t len, unsigned long long *out) {
+    size_t i = 0;
+    unsigned long long n = 0;
+    int saw_digit = 0;
+
+    while (i < len && (v[i] == ' ' || v[i] == '\t')) i++;
+    for (; i < len; i++) {
+        if (v[i] >= '0' && v[i] <= '9') {
+            saw_digit = 1;
+            if (n > (ULLONG_MAX - (unsigned long long)(v[i] - '0')) / 10ULL) return -1;
+            n = n * 10ULL + (unsigned long long)(v[i] - '0');
+        } else if (v[i] == ' ' || v[i] == '\t') {
+            while (i < len && (v[i] == ' ' || v[i] == '\t')) i++;
+            if (i != len) return -1;
+            break;
+        } else {
+            return -1;
+        }
+    }
+
+    if (!saw_digit) return -1;
+    *out = n;
     return 0;
 }
 
@@ -63,52 +103,127 @@ static void http_copy_request_target(const uint8_t *data, size_t len, protocol_c
     ctx->uri[uri_len] = '\0';
 }
 
-static unsigned int http_suspicion_score(const char *uri, const uint8_t *data, size_t len) {
+static unsigned int http_suspicion_score_uri(const char *uri) {
     unsigned int score = 0;
     if (!uri) return score;
 
-    /* SQLi indicators */
-    if (http_contains_case_insensitive(uri, "union select")) score += 4;
-    if (http_contains_case_insensitive(uri, "' or 1=1")) score += 4;
-    if (http_contains_case_insensitive(uri, "sleep(")) score += 3;
-    if (http_contains_case_insensitive(uri, "benchmark(")) score += 3;
-    if (http_contains_case_insensitive(uri, "information_schema")) score += 4;
-    if (http_contains_case_insensitive(uri, "xp_cmdshell")) score += 5;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "union select")) score += 4;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "' or 1=1")) score += 4;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "sleep(")) score += 3;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "benchmark(")) score += 3;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "information_schema")) score += 4;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "xp_cmdshell")) score += 5;
 
-    /* XSS indicators */
-    if (http_contains_case_insensitive(uri, "<script")) score += 4;
-    if (http_contains_case_insensitive(uri, "%3cscript")) score += 4;
-    if (http_contains_case_insensitive(uri, "javascript:")) score += 4;
-    if (http_contains_case_insensitive(uri, "onerror=")) score += 3;
-    if (http_contains_case_insensitive(uri, "onload=")) score += 3;
-    if (http_contains_case_insensitive(uri, "alert(")) score += 2;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "<script")) score += 4;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "%3cscript")) score += 4;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "javascript:")) score += 4;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "onerror=")) score += 3;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "onload=")) score += 3;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "alert(")) score += 2;
 
-    /* Path traversal / file access */
     if (strstr(uri, "../")) score += 4;
     if (strstr(uri, "..%2f") || strstr(uri, "..%2F")) score += 4;
-    if (http_contains_case_insensitive(uri, "/etc/passwd")) score += 5;
-    if (http_contains_case_insensitive(uri, "win.ini")) score += 4;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "/etc/passwd")) score += 5;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "win.ini")) score += 4;
 
-    /* SSRF / parser confusion */
-    if (http_contains_case_insensitive(uri, "http://127.0.0.1")) score += 2;
-    if (http_contains_case_insensitive(uri, "http://169.254.169.254")) score += 5;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "http://127.0.0.1")) score += 2;
+    if (http_contains_case_insensitive_n((const uint8_t *)uri, strlen(uri), "http://169.254.169.254")) score += 5;
     if (strchr(uri, '\\')) score += 2;
     if (strchr(uri, '@')) score += 1;
 
-    /* Request smuggling hints in headers/body chunk */
-    if (len > 0) {
-        const char *raw = (const char *)data;
-        if (http_contains_case_insensitive(raw, "transfer-encoding: chunked") &&
-            http_contains_case_insensitive(raw, "content-length:")) {
-            score += 5;
+    if (strlen(uri) > 180) score += 2;
+    return score;
+}
+
+static unsigned int http_suspicion_score_smuggling(const uint8_t *data, size_t len) {
+    unsigned int score = 0;
+    int hdr_end = http_find_headers_end(data, len);
+    if (hdr_end < 0) return 0;
+
+    int line_end = http_find_line_end(data, len);
+    if (line_end < 0 || line_end + 2 >= hdr_end) return 0;
+
+    const uint8_t *p = data + line_end + 2;
+    const uint8_t *end = data + hdr_end;
+
+    int has_te = 0, has_cl = 0, te_chunked = 0;
+    int cl_count = 0, te_count = 0, bad_cl = 0, bad_te = 0, obs_fold = 0;
+    unsigned long long first_cl = 0, cur_cl = 0;
+    int first_cl_set = 0, cl_conflict = 0;
+
+    while (p < end) {
+        const uint8_t *line = p;
+        const uint8_t *eol = NULL;
+
+        for (const uint8_t *q = p; q + 1 < end; q++) {
+            if (q[0] == '\r' && q[1] == '\n') {
+                eol = q;
+                break;
+            }
         }
-        if (http_contains_case_insensitive(raw, "content-length: 0") &&
-            http_contains_case_insensitive(raw, "transfer-encoding:")) {
-            score += 3;
+        if (!eol) break;
+        if (eol == line) break;
+
+        if (*line == ' ' || *line == '\t') {
+            obs_fold = 1;
+            p = eol + 2;
+            continue;
         }
+
+        const uint8_t *colon = memchr(line, ':', (size_t)(eol - line));
+        if (!colon) {
+            score += 2;
+            p = eol + 2;
+            continue;
+        }
+
+        const uint8_t *name = line;
+        size_t name_len = (size_t)(colon - line);
+        const uint8_t *value = colon + 1;
+        size_t value_len = (size_t)(eol - value);
+
+        while (value_len > 0 && (*value == ' ' || *value == '\t')) {
+            value++;
+            value_len--;
+        }
+
+        if (http_header_name_eq(name, name_len, "content-length")) {
+            has_cl = 1;
+            cl_count++;
+
+            if (http_parse_content_length(value, value_len, &cur_cl) != 0) {
+                bad_cl = 1;
+            } else if (!first_cl_set) {
+                first_cl = cur_cl;
+                first_cl_set = 1;
+            } else if (cur_cl != first_cl) {
+                cl_conflict = 1;
+            }
+        } else if (http_header_name_eq(name, name_len, "transfer-encoding")) {
+            has_te = 1;
+            te_count++;
+
+            if (http_contains_case_insensitive_n(value, value_len, "chunked")) {
+                te_chunked = 1;
+            }
+
+            if (http_contains_case_insensitive_n(value, value_len, "identity")) {
+                bad_te = 1;
+            }
+        }
+
+        p = eol + 2;
     }
 
-    if (strlen(uri) > 180) score += 2;
+    if (obs_fold) score += 4;
+    if (bad_cl) score += 5;
+    if (cl_conflict) score += 6;
+    if (cl_count > 1 && !cl_conflict) score += 2;
+    if (te_count > 1) score += 2;
+    if (bad_te) score += 3;
+
+    if (has_te && has_cl) score += te_chunked ? 6 : 3;
+    if (has_te && !te_chunked) score += 1;
 
     return score;
 }
@@ -124,7 +239,10 @@ int parse_http1(const uint8_t *data, size_t len, protocol_ctx_t *ctx) {
     if (line_end < 0) return -1;
 
     http_copy_request_target(data, (size_t)line_end, ctx);
-    ctx->flags = http_suspicion_score(ctx->uri, data, len);
+
+    ctx->flags = 0;
+    ctx->flags += http_suspicion_score_uri(ctx->uri);
+    ctx->flags += http_suspicion_score_smuggling(data, len);
 
     return 0;
 }
@@ -135,11 +253,11 @@ bool http_is_malicious(const protocol_ctx_t *ctx) {
     if (ctx->flags >= 4) return true;
 
     if (strstr(ctx->uri, "../")) return true;
-    if (http_contains_case_insensitive(ctx->uri, "union select")) return true;
-    if (http_contains_case_insensitive(ctx->uri, "<script")) return true;
-    if (http_contains_case_insensitive(ctx->uri, "%3cscript")) return true;
-    if (http_contains_case_insensitive(ctx->uri, "javascript:")) return true;
-    if (http_contains_case_insensitive(ctx->uri, "/etc/passwd")) return true;
+    if (http_contains_case_insensitive_n((const uint8_t *)ctx->uri, strlen(ctx->uri), "union select")) return true;
+    if (http_contains_case_insensitive_n((const uint8_t *)ctx->uri, strlen(ctx->uri), "<script")) return true;
+    if (http_contains_case_insensitive_n((const uint8_t *)ctx->uri, strlen(ctx->uri), "%3cscript")) return true;
+    if (http_contains_case_insensitive_n((const uint8_t *)ctx->uri, strlen(ctx->uri), "javascript:")) return true;
+    if (http_contains_case_insensitive_n((const uint8_t *)ctx->uri, strlen(ctx->uri), "/etc/passwd")) return true;
 
     return false;
 }
