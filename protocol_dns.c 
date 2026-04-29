@@ -1,20 +1,25 @@
-/*
- * CuChulainn IDS v5.1 - DNS Parser
- * Detects suspicious DNS query patterns including
- * high-entropy domains, long labels, and tunneling indicators.
- */
-
 #include "protocol_parser.h"
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <ctype.h>
 #include <math.h>
 
-static float dns_entropy_score(const char *s) {
+#define DNS_HDR_LEN 12
+#define DNS_MAX_NAME_WIRE 255
+#define DNS_MAX_LABEL_LEN 63
+#define DNS_MAX_POINTER_HOPS 16
+
+static uint16_t read_u16_be(const uint8_t *p) {
+    return (uint16_t)((uint16_t)p[0] << 8 | p[1]);
+}
+
+static float dns_entropy_score_buf(const char *s) {
     if (!s || !*s) return 0.0f;
 
     int freq[256] = {0};
     size_t len = 0;
+
     for (const unsigned char *p = (const unsigned char *)s; *p; ++p) {
         freq[*p]++;
         len++;
@@ -23,42 +28,20 @@ static float dns_entropy_score(const char *s) {
     if (len == 0) return 0.0f;
 
     float h = 0.0f;
+    const float log2f_denom = logf(2.0f);
     for (int i = 0; i < 256; i++) {
-        if (freq[i] == 0) continue;
-        float p = (float)freq[i] / (float)len;
-        h -= p * (logf(p) / logf(2.0f));
+        if (!freq[i]) continue;
+        float prob = (float)freq[i] / (float)len;
+        h -= prob * (logf(prob) / log2f_denom);
     }
     return h;
 }
 
-static int dns_extract_qname(const uint8_t *data, size_t len, char *out, size_t out_sz) {
-    if (!data || !out || out_sz == 0 || len < 13) return -1;
-
-    size_t off = 12;
-    size_t pos = 0;
-
-    while (off < len) {
-        uint8_t label_len = data[off++];
-
-        if (label_len == 0) break;
-        if ((label_len & 0xC0) != 0) return -1;
-        if (label_len > 63) return -1;
-        if (off + label_len > len) return -1;
-
-        if (pos && pos < out_sz - 1) {
-            out[pos++] = '.';
-        }
-
-        for (uint8_t i = 0; i < label_len && pos < out_sz - 1; i++) {
-            unsigned char c = data[off + i];
-            out[pos++] = (char)(isprint(c) ? c : '?');
-        }
-
-        off += label_len;
+static void dns_ascii_lower(char *s) {
+    if (!s) return;
+    for (; *s; ++s) {
+        *s = (char)tolower((unsigned char)*s);
     }
-
-    out[pos] = '\0';
-    return 0;
 }
 
 static int dns_count_labels(const char *domain) {
@@ -71,9 +54,10 @@ static int dns_count_labels(const char *domain) {
 }
 
 static int dns_longest_label(const char *domain) {
-    if (!domain) return 0;
     int max_len = 0, cur = 0;
-    for (const char *p = domain; ; ++p) {
+    if (!domain) return 0;
+
+    for (const char *p = domain;; ++p) {
         if (*p == '.' || *p == '\0') {
             if (cur > max_len) max_len = cur;
             cur = 0;
@@ -85,34 +69,184 @@ static int dns_longest_label(const char *domain) {
     return max_len;
 }
 
+static float dns_left_label_entropy(const char *domain) {
+    if (!domain || !*domain) return 0.0f;
+
+    char label[64];
+    size_t i = 0;
+    while (domain[i] && domain[i] != '.' && i < sizeof(label) - 1) {
+        label[i] = domain[i];
+        i++;
+    }
+    label[i] = '\0';
+    return dns_entropy_score_buf(label);
+}
+
+static bool dns_is_ldh_domain(const char *domain) {
+    if (!domain || !*domain) return false;
+
+    int label_len = 0;
+    for (const unsigned char *p = (const unsigned char *)domain; ; ++p) {
+        unsigned char c = *p;
+        if (c == '.' || c == '\0') {
+            if (label_len == 0) return false;
+            if (*(p - 1) == '-') return false;
+            label_len = 0;
+            if (c == '\0') break;
+            continue;
+        }
+
+        if (label_len == 0 && !isalpha(c) && !isdigit(c))
+            return false;
+        if (!(isalnum(c) || c == '-'))
+            return false;
+
+        label_len++;
+        if (label_len > DNS_MAX_LABEL_LEN)
+            return false;
+    }
+
+    return true;
+}
+
+/* Decode QNAME from wire format.
+ * msg      : full DNS message
+ * len      : full message length
+ * qoff     : offset where QNAME starts (usually 12)
+ * out      : dotted decoded name
+ * out_sz   : size of out
+ * consumed : bytes consumed in the original wire encoding from qoff
+ */
+static int dns_extract_qname_safe(const uint8_t *msg, size_t len, size_t qoff,
+                                  char *out, size_t out_sz, size_t *consumed) {
+    if (!msg || !out || out_sz == 0 || !consumed) return -1;
+    if (len < DNS_HDR_LEN || qoff >= len) return -1;
+
+    size_t cur = qoff;
+    size_t out_pos = 0;
+    size_t name_wire_len = 0;
+    size_t jumps = 0;
+    bool jumped = false;
+    *consumed = 0;
+
+    while (cur < len) {
+        uint8_t octet = msg[cur];
+
+        if (octet == 0) {
+            if (!jumped) {
+                *consumed = (cur - qoff) + 1;
+            }
+            if (out_pos == 0) {
+                if (out_sz < 2) return -1;
+                out[0] = '.';
+                out[1] = '\0';
+            } else {
+                out[out_pos] = '\0';
+            }
+            name_wire_len++;
+            return (name_wire_len <= DNS_MAX_NAME_WIRE) ? 0 : -1;
+        }
+
+        if ((octet & 0xC0) == 0xC0) {
+            if (cur + 1 >= len) return -1;
+
+            uint16_t ptr = (uint16_t)(((octet & 0x3F) << 8) | msg[cur + 1]);
+            if (ptr >= len) return -1;
+            if (ptr >= cur) return -1; /* backward-only to prevent loops */
+            if (++jumps > DNS_MAX_POINTER_HOPS) return -1;
+
+            if (!jumped) {
+                *consumed = (cur - qoff) + 2;
+                jumped = true;
+            }
+
+            cur = ptr;
+            continue;
+        }
+
+        if ((octet & 0xC0) != 0x00) return -1;
+        if (octet > DNS_MAX_LABEL_LEN) return -1;
+
+        size_t label_len = octet;
+        cur++;
+
+        if (cur + label_len > len) return -1;
+        if (name_wire_len + 1 + label_len > DNS_MAX_NAME_WIRE) return -1;
+
+        if (out_pos != 0) {
+            if (out_pos + 1 >= out_sz) return -1;
+            out[out_pos++] = '.';
+        }
+
+        for (size_t i = 0; i < label_len; i++) {
+            unsigned char c = msg[cur + i];
+            if (out_pos + 1 >= out_sz) return -1;
+            out[out_pos++] = isprint(c) ? (char)c : '?';
+        }
+
+        name_wire_len += 1 + label_len;
+        cur += label_len;
+    }
+
+    return -1;
+}
+
 int parse_dns(const uint8_t *data, size_t len, protocol_ctx_t *ctx) {
-    if (!data || !ctx || len < 12) return -1;
+    if (!data || !ctx || len < DNS_HDR_LEN) return -1;
 
     memset(ctx->domain, 0, sizeof(ctx->domain));
     ctx->proto = PROTO_DNS;
-    ctx->flags = ((uint32_t)data[2] << 8) | data[3];
+    ctx->flags = read_u16_be(&data[2]);
 
-    if (dns_extract_qname(data, len, ctx->domain, sizeof(ctx->domain)) != 0) {
+    uint16_t qdcount = read_u16_be(&data[4]);
+    if (qdcount == 0) return -1;
+
+    size_t consumed = 0;
+    if (dns_extract_qname_safe(data, len, DNS_HDR_LEN,
+                               ctx->domain, sizeof(ctx->domain), &consumed) != 0) {
         return -1;
     }
 
-    ctx->entropy = dns_entropy_score(ctx->domain);
+    if (DNS_HDR_LEN + consumed + 4 > len) return -1; /* QTYPE + QCLASS */
+
+    dns_ascii_lower(ctx->domain);
+    ctx->entropy = dns_entropy_score_buf(ctx->domain);
+
+    /* If protocol_ctx_t has fields, store these too:
+     * ctx->qtype = read_u16_be(&data[DNS_HDR_LEN + consumed]);
+     * ctx->qclass = read_u16_be(&data[DNS_HDR_LEN + consumed + 2]);
+     */
+
     return 0;
 }
 
 bool dns_is_malicious(const protocol_ctx_t *ctx) {
-    if (!ctx) return false;
+    if (!ctx || !ctx->domain[0]) return false;
 
     size_t domain_len = strlen(ctx->domain);
     int labels = dns_count_labels(ctx->domain);
     int longest = dns_longest_label(ctx->domain);
+    float left_entropy = dns_left_label_entropy(ctx->domain);
+    bool ldh_only = dns_is_ldh_domain(ctx->domain);
 
-    if (domain_len >= 52) return true;
-    if (longest >= 24) return true;
-    if (labels >= 5) return true;
-    if (ctx->entropy >= 4.0f) return true;
+    int score = 0;
 
-    if (strstr(ctx->domain, "xn--") != NULL && ctx->entropy >= 3.5f) return true;
+    if (domain_len >= 52) score += 2;
+    if (domain_len >= 80) score += 1;
 
-    return false;
+    if (longest >= 24) score += 2;
+    if (longest >= 32) score += 1;
+
+    if (labels >= 5) score += 1;
+    if (labels >= 7) score += 1;
+
+    if (ctx->entropy >= 4.0f) score += 2;
+    if (left_entropy >= 3.5f) score += 2;
+
+    if (!ldh_only) score += 1;
+
+    if (strstr(ctx->domain, "xn--") != NULL && left_entropy >= 3.3f)
+        score += 1;
+
+    return score >= 4;
 }
