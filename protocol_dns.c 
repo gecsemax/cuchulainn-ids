@@ -588,5 +588,3 @@ bool dns_is_malicious(const protocol_ctx_t *ctx) {
 
     return false;
 }
-
-Sources
