@@ -1,6 +1,11 @@
 > ⚔️ **CuChulainn IDS v5.1** — Apache 2.0 License — Written by **Max Gecse**
-> 
-CuChulainn IDS v5.1 is the final open-source release. Versions 5.2+ are available under commercial license. Contact [![LinkedIn](https://img.shields.io/badge/LinkedIn-Max_Gecse-blue?style=flat&logo=linkedin)](https://www.linkedin.com/in/max-gecse/) for enterprise licensing and support.                        
+
+| 🆓 Open Source | 💼 Commercial |
+|---|---|
+| **v5.1** (final release) | **v5.2+** available now |
+
+**Enterprise licensing & support:** [![LinkedIn](https://img.shields.io/badge/LinkedIn-Max_Gecse-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/max-gecse/)
+
 
 
 # 🛡️ **CuChulainn IDS v5.1** ![CuChulainn Authorship](https://img.shields.io/badge/Code-Max%20Gecse%20%E2%80%94%20Human%20Authored-darkgreen?style=for-the-badge)      
