@@ -1,9 +1,3 @@
-/*
- * CuChulainn IDS v5.1 - Protocol Parser Dispatcher
- * Author: Max Gecse
- * License: Apache 2.0
- */
-
 #include "protocol_parser.h"
 #include <string.h>
 #include <stdio.h>
