@@ -1,11 +1,3 @@
-/*
- * CuChulainn IDS v5.1 - Main Entry Point
- * High-performance protocol-aware intrusion detection system
- *
- * Author: Max Gecse
- * License: Apache 2.0
- */
-
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
