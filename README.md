@@ -5,13 +5,6 @@
 
 Contact [![LinkedIn](https://img.shields.io/badge/LinkedIn-Max_Gecse-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/max-gecse/) for enterprise licensing and support.
 
-CuChulainn IDS v5.1 is the final open-source release. Versions 5.2+ are available under commercial license.
-
-**Contact for enterprise licensing and support:**
-
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Max_Gecse-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/max-gecse/)
-
-
 
 # 🛡️ **CuChulainn IDS v5.1** ![CuChulainn Authorship](https://img.shields.io/badge/Code-Max%20Gecse%20%E2%80%94%20Human%20Authored-darkgreen?style=for-the-badge)      
 
