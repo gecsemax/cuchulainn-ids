@@ -335,6 +335,11 @@ Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,  
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 
+| 🆓 Open Source | 💼 Commercial |
+|---|---|
+| **v5.1** (final release) | **v5.2+** available now |
+
+**Enterprise licensing & support:** [![LinkedIn](https://img.shields.io/badge/LinkedIn-Max_Gecse-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/max-gecse/)
 
 ---
 
