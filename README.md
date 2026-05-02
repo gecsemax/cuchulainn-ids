@@ -66,282 +66,160 @@ Memory
 
 ![Human-Written Code](https://img.shields.io/badge/Code-Human--Written-blueviolet?style=for-the-badge)
 
-CuChulainn is built with the philosophy that **clarity, performance, and correctness come from deliberate human reasoning**, not automated synthesis.
+# CuChulainn IDS v5.1  
+Apache 2.0 License  
+Author: Max Gecse
 
-
-⚡ **The fastest open‑source NIDS in the world**  
-🔥 **0.22ms latency · 97% detection · 2.1% CPU @ 10Gbps · AV
-
-[`https://github.com/gecsemax/cuchulainn-ids/releases/tag/v5.1`](https://github.com/gecsemax/cuchulainn-ids/releases/tag/v5.1)
-[`#`](#)
-[`#`](#)
-[`#`](#)
-[`#`](#)
-
-**New in v5.1:**  
-✓ 7 new protocol parsers (DNS, HTTP/1.1, HTTP/2, SIP, SMTP, NTP, FTP)  
-✓ IMAP + POP3 modules  
-✓ ML‑powered zero‑day detection (96%)  
-✓ AVX‑512 accelerated protocol detection  
-
-[Features](#-features) • [Benchmarks](#-benchmarks) • [Architecture](#-architecture) • [Installation](#-installation) • [Usage](#-usage) • [Diagrams](#-diagrams) • [License](#-license)
-
-</div>
+CuChulainn IDS is a network intrusion detection system written in C.  
+The project focuses on predictable performance, low latency, and a transparent internal architecture.  
+Version 5.1 is the final open‑source release. Later versions are available under a commercial license.
 
 ---
 
-# 🚀 Why CuChulainn IDS?
+## Overview
 
-CuChulainn IDS v5.1 is a **high‑performance, AI‑powered network intrusion detection system** designed for:
+CuChulainn IDS provides protocol‑aware packet inspection with a compact and auditable codebase.  
+The system avoids dynamic memory allocation in the hot path and uses a straightforward processing pipeline:
 
-- ultra‑low latency  
-- high‑throughput packet inspection  
-- protocol‑aware detection  
-- zero‑day threat identification  
-- minimal CPU and memory footprint  
+- AF_PACKET capture with a memory‑mapped ring buffer  
+- epoll‑based event loop  
+- deterministic protocol parsers  
+- optional AVX‑512 accelerated pattern matching  
+- scoring and alerting modules  
 
-It consistently **outperforms Suricata and Snort** in speed, accuracy, and efficiency.
+The goal is to keep the implementation simple, maintainable, and suitable for environments where predictable behaviour is more important than feature complexity.
 
 ---
 
-# ✨ Features
+## Protocol Support
 
-### ⚡ Performance
-- **0.22ms median latency**  
-- **0% packet loss @ 10Gbps**  
-- **2.1% CPU usage** (AVX‑512 enabled)  
-- Zero‑allocation hot path  
-- Deterministic per‑protocol parsers  
+CuChulainn IDS includes parsers for:
 
-### 🧠 Detection
-- 97% threat detection  
-- 96% zero‑day detection (ML)  
-- <0.5% false positives  
-- Per‑protocol heuristics for:
-  - TLS (SNI anomalies, malformed ClientHello)
-  - DNS (entropy, tunneling, long domains)
-  - HTTP/1.1 (SQLi, XSS, traversal)
-  - HTTP/2 (Rapid Reset heuristics)
-  - SMTP/IMAP/POP3 (phishing, scraping)
-  - SIP, FTP, NTP
-
-### 🔍 Protocol Coverage
-- TLS  
-- DNS  
-- HTTP/1.1  
-- HTTP/2  
-- SMTP  
-- IMAP  
-- POP3  
-- SIP  
-- FTP  
-- NTP  
-- MQTT  
-- SSH  
-- QUIC (heuristic)  
+- TLS (ClientHello inspection)
+- DNS
+- HTTP/1.1
+- HTTP/2
+- SMTP
+- IMAP
+- POP3
+- SIP
+- FTP
+- NTP
+- MQTT
+- SSH
+- QUIC (heuristic)
 - CoAP (heuristic)
 
-### 🧩 Architecture
-- AF_PACKET raw capture  
-- epoll‑based event loop  
-- AVX‑512 accelerated detection  
-- Unified `protocol_ctx_t`  
-- ML fallback engine  
-- Zero dynamic memory in hot path  
+Each parser extracts a minimal set of fields required for detection logic.
 
 ---
 
-# 📊 Benchmarks
+## Detection
 
-CuChulainn IDS v5.1 was benchmarked using a **reproducible, safe, transparent methodology**.
+The detection layer combines:
 
-## Benchmark Summary
+- lightweight heuristics  
+- per‑protocol anomaly checks  
+- optional ML‑based scoring (offline‑trained model)  
 
-| Metric | CuChulainn v5.1 | Suricata 7.0 | Snort 3.2 |
-|--------|-----------------|--------------|-----------|
-| **Latency** | **0.22ms** | 0.45ms | 0.65ms |
-| **Threat Detection** | **97%** | 78% | 72% |
-| **Zero‑Day Detection** | **96%** | 65% | 45% |
-| **CPU @ 10Gbps** | **2.1%** | 6–8% | 45–65% |
-| **Memory** | **58MB** | 200–500MB | 800MB–2GB |
-| **False Positives** | **<0.5%** | 3–5% | 8–12% |
-| **Packet Loss @ 10Gbps** | **0%** | 2% | 8% |
+Examples of implemented checks:
 
-<div align="center">
+- TLS: SNI anomalies, malformed ClientHello patterns  
+- DNS: entropy‑based tunneling indicators  
+- HTTP/1.1: suspicious URI patterns  
+- HTTP/2: frame‑level irregularities  
+- Mail protocols: basic phishing/scraping indicators  
 
-### 🏆 CuChulainn is **2× faster than Suricata**, **3× faster than Snort**, with **19–26% better detection**
-
-</div>
+The system is intentionally conservative to reduce false positives.
 
 ---
 
-# 🧪 Benchmark Methodology
+## Performance Characteristics
 
-### Hardware
-- Intel Xeon Silver 4314 (AVX‑512)  
-- Intel X710 10GbE NIC  
-- Linux kernel 6.x  
-- GRO/LRO disabled  
-- IRQ pinned to isolated cores  
-- RSS enabled  
+Performance depends on hardware and traffic profile.  
+Typical behaviour on modern x86‑64 systems:
 
-### Traffic Profiles
-- **Profile A:** Benign enterprise mix  
-- **Profile B:** Benign + suspicious patterns  
-- **Profile C:** High‑volume TLS stress test  
+- low CPU usage under sustained load  
+- stable throughput at high packet rates  
+- sub‑millisecond processing latency  
+- zero‑allocation hot path  
 
-### Tools
-- tcpreplay / MoonGen  
-- perf / top / sar  
-- CuChulainn internal counters  
+The project includes a benchmark report describing the test environment and methodology.
 
 ---
 
-# 🏗️ Architecture
-
-CuChulainn uses a **deterministic, zero‑allocation, protocol‑aware pipeline**:
-
-```mermaid
-flowchart TD
-    CAP[AF_PACKET Capture<br/>Non-blocking, epoll] --> DET[Protocol Detection<br/>Heuristic classifier]
-    DET --> PARSERS{Protocol Parsers}
-    PARSERS -->|TLS| TLS[TLS Parser<br/>SNI extraction<br/>Version checks]
-    PARSERS -->|DNS| DNS[DNS Parser<br/>QNAME extraction<br/>Entropy]
-    PARSERS -->|HTTP1| H1[HTTP/1.1 Parser<br/>URI extraction<br/>SQLi/XSS heuristics]
-    PARSERS -->|HTTP2| H2[HTTP/2 Parser<br/>Frame analysis<br/>Rapid Reset heuristics]
-    PARSERS -->|SMTP| SMTP[SMTP Parser<br/>Sender domain<br/>Phishing heuristics]
-    PARSERS -->|IMAP| IMAP[IMAP Parser<br/>Mailbox scraping detection]
-    PARSERS -->|POP3| POP3[POP3 Parser<br/>Login/scraping heuristics]
-    PARSERS -->|FTP| FTP[FTP Parser]
-    PARSERS -->|SIP| SIP[SIP Parser]
-    PARSERS -->|NTP| NTP[NTP Parser]
-
-    TLS --> SCORE
-    DNS --> SCORE
-    H1 --> SCORE
-    H2 --> SCORE
-    SMTP --> SCORE
-    IMAP --> SCORE
-    POP3 --> SCORE
-    FTP --> SCORE
-    SIP --> SCORE
-    NTP --> SCORE
-
-    SCORE[Scoring Engine<br/>Heuristics + ML] --> ALERT[Alerting & Stats]
-```
-
----
-
-# 📐 Benchmark Setup Diagram
-
-```mermaid
-flowchart LR
-    TG[Traffic Generator Machine<br/>• MoonGen / tcpreplay<br/>• Safe synthetic traffic<br/>• Labeled benign + suspicious patterns<br/>• 1–10 Gbps sweep] 
-        ---|10GbE Direct Link| IDS
-
-    subgraph IDS[CuChulainn IDS Machine]
-        CP[AF_PACKET Capture<br/>• Non-blocking raw socket<br/>• epoll event loop]
-        PD[Protocol Detection<br/>• TLS / DNS / HTTP1 / HTTP2<br/>• SMTP / IMAP / POP3 / FTP / SIP / NTP]
-        PX[Per‑Protocol Parsers<br/>• Zero‑allocation<br/>• Deterministic C<br/>• AVX‑512 accelerated]
-        ML[ML Zero‑Day Detection<br/>• Feature extraction<br/>• Suspicious pattern scoring]
-        AL[Alerting & Stats<br/>• Per‑protocol counters<br/>• Detection rate<br/>• Packet loss<br/>• Latency]
-    end
-
-    TG --> CP --> PD --> PX --> ML --> AL
-```
-
----
-
-# 📦 Installation
+## Building
 
 ```bash
 git clone https://github.com/gecsemax/cuchulainn-ids
 cd cuchulainn-ids
 make
-sudo ./cuchulainn
 ```
 
-Requires:
+Requirements:
 
 - Linux  
-- GCC/Clang  
-- AVX‑512 capable CPU (optional but recommended)  
+- GCC or Clang  
+- optional: AVX‑512 capable CPU  
 
 ---
 
-# ▶️ Usage
-
-Run CuChulainn:
+## Running
 
 ```bash
-sudo ./cuchulainn
+sudo ./cuchulainn -i eth0
 ```
 
-You will see:
+Options:
 
-- protocol detections  
-- alerts  
-- domain/URI extraction  
-- suspicion scores  
-- runtime statistics  
+```
+-i <iface>     Network interface
+-r <file>      Read packets from pcap
+-o <file>      Write alerts to file
+```
+
+During execution, the program prints protocol detections, extracted fields, and scoring results.
 
 ---
 
-# 📁 Repository Structure
+## Repository Structure
 
 ```
-cuchulainn-ids/
- ├── src/
- │    ├── main.c
- │    ├── protocol_parser.c
- │    ├── tls.c
- │    ├── dns.c
- │    ├── http1.c
- │    ├── http2.c
- │    ├── smtp.c
- │    ├── imap.c
- │    ├── pop3.c
- │    └── ...
- ├── include/
- │    └── protocol_parser.h
- ├── docs/
- │    ├── benchmark-report.md
- │    ├── diagrams/
- │    └── architecture.md
- ├── LICENSE
- └── README.md
+src/
+  main.c
+  protocol_parser.c
+  tls.c
+  dns.c
+  http1.c
+  http2.c
+  smtp.c
+  imap.c
+  pop3.c
+  ...
+include/
+  protocol_parser.h
+docs/
+  benchmark-report.md
+  architecture.md
+LICENSE
+README.md
 ```
 
 ---
 
-# 🤝 Contributing
+## Project Status
 
-Pull requests are welcome.  
-Protocol modules, parsers, and performance improvements are especially appreciated.
+CuChulainn IDS v5.1 is stable and maintained.  
+Future development (v5.2+) continues under a commercial license.
+
+For enterprise licensing or support, contact the author.
 
 ---
 
-# 📜 License
+## License
 
-CuChulainn IDS is released under the **Apache 2.0 License**.
-CuChulainn IDS v5.1
+Apache License 2.0  
 Copyright (c) 2026  
 Max Gecse
-
-CuChulainn IDS v5.1 is released under the Apache License, Version 2.0.  
-You may not use this project except in compliance with the License.
-
-Unless required by applicable law or agreed to in writing, software  
-distributed under the License is distributed on an "AS IS" BASIS,  
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-
-| 🆓 Open Source | 💼 Commercial |
-|---|---|
-| **v5.1** (final release) | **v5.2+** available now |
-
-**Enterprise licensing & support:** [![LinkedIn](https://img.shields.io/badge/LinkedIn-Max_Gecse-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/max-gecse/)
-
----
-
-
+```
 
